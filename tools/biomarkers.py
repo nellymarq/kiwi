@@ -53,7 +53,8 @@ class BiomarkerRef:
     high: float
     critical_low: Optional[float] = None
     critical_high: Optional[float] = None
-    athletic_low_adj: Optional[float] = None   # Athletes often run lower but it's normal
+    athletic_low_adj: Optional[float] = None   # Athletes often run lower — below this is truly low
+    athletic_high_adj: Optional[float] = None  # Athletes often run higher — above ref.high but ≤ this is ATHLETIC_NORM
     athlete_note: str = ""
     performance_impact: str = ""
     action_if_low: str = ""
@@ -109,6 +110,7 @@ BIOMARKER_DB: dict[str, BiomarkerRef] = {
         low=12.0, high=17.5,
         critical_low=7.0,
         athletic_low_adj=13.5,
+        athletic_high_adj=18.5,
         athlete_note="Endurance athletes may have dilutional pseudoanemia (plasma expansion). Interpret with hematocrit.",
         performance_impact="Hemoglobin directly limits oxygen transport and VO2max.",
         action_if_low="Iron-deficiency anemia vs. dilutional: check ferritin + MCV. Altitude exposure may help.",
@@ -243,6 +245,7 @@ BIOMARKER_DB: dict[str, BiomarkerRef] = {
         low=0.6, high=1.2,
         critical_high=10.0,
         athletic_low_adj=0.8,
+        athletic_high_adj=1.4,
         athlete_note="Athletes with high muscle mass often have creatinine 1.0–1.4 — not necessarily kidney disease.",
         performance_impact="Elevated post-exercise creatinine is normal (exercise-induced). Monitor trends.",
         action_if_low="Low muscle mass, possible malnutrition.",
@@ -254,6 +257,7 @@ BIOMARKER_DB: dict[str, BiomarkerRef] = {
         unit="U/L",
         low=7.0, high=56.0,
         critical_high=500.0,
+        athletic_high_adj=168.0,  # Up to 3× upper limit is expected post-DOMS
         athlete_note="Can be transiently elevated 2–3× after intense resistance training (from muscle damage, not liver).",
         performance_impact="Elevated ALT post-exercise: DOMS marker, not liver disease in athletes.",
         action_if_low="",
@@ -377,6 +381,8 @@ class BiomarkerInterpreter:
                 return "ATHLETIC_LOW"
             return "LOW"
         if value > ref.high:
+            if ref.athletic_high_adj and value <= ref.athletic_high_adj:
+                return "ATHLETIC_NORM"
             return "HIGH"
         return "NORMAL"
 

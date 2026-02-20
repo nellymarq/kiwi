@@ -328,7 +328,8 @@ def optimal_wake_times(bedtime_str: str, num_options: int = 4) -> SleepCycleResu
         wake_options.append(f"{wake_h:02d}:{wake_m:02d}")
 
     # Optimal = 5th cycle (7.5h) for most athletes
-    optimal_idx = min(1, len(wake_options) - 1)  # Index 1 = 5 cycles (4+1)
+    # wake_options[0] = 4 cycles, wake_options[1] = 5 cycles (7.5h = optimal)
+    optimal_idx = 1 if len(wake_options) >= 2 else 0
     optimal = wake_options[optimal_idx]
 
     notes = ""
