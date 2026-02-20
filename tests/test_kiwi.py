@@ -30,6 +30,14 @@ def test_all_module_imports():
     from tools.pubmed import PubMedClient, Article
     from tools.calculations import SportsCalc, AthleteMetrics, ACTIVITY_FACTORS
     from tools.exporter import ResearchExporter
+    from tools.interactions import INTERACTION_DB, lookup_interactions, format_interaction_report
+    from tools.food_database import FDCClient, FoodNutrients, NUTRIENT_IDS
+    from tools.periodization import TrainingLoadCalculator, get_block_plan, prilepins_recommendation
+    from tools.biomarkers import BiomarkerInterpreter, BIOMARKER_DB, interpret_panel
+    from tools.sleep_optimizer import (
+        classify_chronotype, optimal_wake_times, caffeine_clearance,
+        sleep_debt_report, CHRONOTYPE_PROFILES, ATHLETE_SLEEP_TARGETS,
+    )
     from memory.store import KiwiMemory
     from memory.profile import UserProfile
 
@@ -208,15 +216,18 @@ def test_memory_semantic_case_insensitive():
 
 
 def test_memory_thread_lifecycle():
+    import uuid
     from memory.store import KiwiMemory
     mem = KiwiMemory()
-    ok = mem.create_thread("test_thread_xyz", "Testing thread creation")
+    # Use UUID to avoid conflicts with previously persisted test data
+    thread_name = f"test_thread_{uuid.uuid4().hex[:8]}"
+    ok = mem.create_thread(thread_name, "Testing thread creation")
     assert ok is True
-    duplicate = mem.create_thread("test_thread_xyz")
+    duplicate = mem.create_thread(thread_name)
     assert duplicate is False  # Can't create duplicate
     threads = mem.list_threads()
     names = [t["name"] for t in threads]
-    assert "test_thread_xyz" in names
+    assert thread_name in names
 
 
 def test_memory_history_summary_empty():

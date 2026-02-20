@@ -44,6 +44,18 @@ from agents.base import REFINEMENT_THRESHOLD
 from tools.pubmed import PubMedClient
 from tools.calculations import SportsCalc
 from tools.exporter import ResearchExporter
+from tools.interactions import lookup_interactions, lookup_single, format_interaction_report
+from tools.food_database import FDCClient
+from tools.periodization import (
+    TrainingSession, TrainingLoadCalculator,
+    prilepins_recommendation, get_block_plan, format_block_plan,
+)
+from tools.biomarkers import interpret_panel, BiomarkerInterpreter
+from tools.sleep_optimizer import (
+    classify_chronotype, optimal_wake_times, caffeine_clearance,
+    sleep_debt_report, athlete_sleep_target, format_hormonal_windows, pre_sleep_protocol,
+    CHRONOTYPE_PROFILES,
+)
 from memory.store import KiwiMemory
 from memory.profile import UserProfile
 
@@ -166,6 +178,10 @@ class Kiwi:
         self.pubmed = PubMedClient() if use_pubmed else None
         self.exporter = ResearchExporter()
         self.calc = SportsCalc()
+        self.fdc = FDCClient()
+        self.load_calc = TrainingLoadCalculator()
+        self.bio_interp = BiomarkerInterpreter()
+        self._pending_sessions: list[TrainingSession] = []  # For /load session entry
         self.messages: list[dict] = []      # Conversation context
         self.active_thread: str | None = None
 
@@ -354,6 +370,28 @@ class Kiwi:
             "  [cyan]/profile set <field> <val>[/cyan]  Set profile field\n"
             "  [cyan]/calc[/cyan]                  Run sports science calculations\n"
             "  [cyan]/pubmed <query>[/cyan]         Search PubMed directly\n\n"
+            "[bold dim cyan]Supplement Tools:[/bold dim cyan]\n"
+            "  [cyan]/check <c1> [c2 ...][/cyan]   Check supplement interactions\n"
+            "  [cyan]/interact <compound>[/cyan]    All known interactions for a compound\n\n"
+            "[bold dim cyan]Food & Nutrition:[/bold dim cyan]\n"
+            "  [cyan]/food <name> [grams][/cyan]    USDA food lookup (per 100g or custom)\n"
+            "  [cyan]/food+ <name> [grams][/cyan]   Same + amino acid profile\n"
+            "  [cyan]/compare <f1>, <f2>[/cyan]     Side-by-side food comparison\n\n"
+            "[bold dim cyan]Training Load:[/bold dim cyan]\n"
+            "  [cyan]/session <day> <min> <rpe>[/cyan]  Log session (day offset, minutes, RPE 1-10)\n"
+            "  [cyan]/load[/cyan]                   Compute ATL/CTL/TSB from logged sessions\n"
+            "  [cyan]/blocks [sport][/cyan]          Periodization plan (strength/endurance/hypertrophy)\n"
+            "  [cyan]/prilepin <pct>[/cyan]          Prilepin's table for intensity %\n\n"
+            "[bold dim cyan]Blood Panel:[/bold dim cyan]\n"
+            "  [cyan]/labs <marker> <val> ...[/cyan]  Interpret biomarkers (e.g. /labs ferritin 25 vitamin_d 35)\n"
+            "  [cyan]/biomarker <name> <val>[/cyan]  Single biomarker quick check\n\n"
+            "[bold dim cyan]Sleep Optimization:[/bold dim cyan]\n"
+            "  [cyan]/sleep <HH:MM>[/cyan]           Optimal wake times for a given bedtime\n"
+            "  [cyan]/chronotype [meq_score][/cyan]  Classify chronotype (MEQ or ask questions)\n"
+            "  [cyan]/caffeine <mg> <hours>[/cyan]   Caffeine clearance calculator\n"
+            "  [cyan]/sleepdebt <h1> <h2>...[/cyan]  Sleep debt from recent nights (hours)\n"
+            "  [cyan]/hormones[/cyan]                 Hormonal sleep window reference\n"
+            "  [cyan]/bedtime [sport][/cyan]          Pre-sleep protocol for your chronotype\n\n"
             "[bold dim cyan]Session:[/bold dim cyan]\n"
             "  [cyan]/clear[/cyan]                 Clear conversation context\n"
             "  [cyan]/new[/cyan]                   New research thread\n"
@@ -547,6 +585,341 @@ class Kiwi:
                             console.print("[dim]  No results found.[/dim]")
                     elif not self.pubmed:
                         console.print("[dim]  PubMed disabled (run without --no-pubmed).[/dim]")
+
+                # ── Supplement Interaction Checker ──────────────────────────
+
+                elif q_lower.startswith("/check "):
+                    raw = query[7:].strip()
+                    if raw:
+                        compounds = [c.strip() for c in raw.split() if c.strip()]
+                        with console.status(
+                            f"[dim cyan]  Checking interactions for: {', '.join(compounds)}...[/dim cyan]",
+                            spinner="dots2",
+                        ):
+                            interactions = lookup_interactions(compounds, min_severity="synergistic")
+                        report = format_interaction_report(compounds, interactions)
+                        console.print(Panel(
+                            report,
+                            title="[cyan]Supplement Interaction Report[/cyan]",
+                            border_style="cyan",
+                            box=box.ROUNDED,
+                            padding=(0, 2),
+                        ))
+                    else:
+                        console.print("[dim]  Usage: /check caffeine creatine melatonin[/dim]")
+
+                elif q_lower.startswith("/interact "):
+                    compound = query[10:].strip()
+                    if compound:
+                        interactions = lookup_single(compound)
+                        if interactions:
+                            report = format_interaction_report([compound], interactions)
+                            console.print(Panel(
+                                report,
+                                title=f"[cyan]Interactions: {compound.title()}[/cyan]",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                        else:
+                            console.print(f"[dim]  No known interactions for '{compound}' in database.[/dim]")
+                            console.print("[dim]  Try researching it: just type your question.[/dim]")
+                    else:
+                        console.print("[dim]  Usage: /interact caffeine[/dim]")
+
+                # ── Food & Nutrition Lookup ──────────────────────────────────
+
+                elif q_lower.startswith("/food+ ") or q_lower.startswith("/food "):
+                    include_aminos = q_lower.startswith("/food+ ")
+                    prefix_len = 7 if include_aminos else 6
+                    args = query[prefix_len:].strip().split()
+                    food_name = " ".join(args[:-1]) if args and args[-1].lstrip("-").isdigit() else " ".join(args)
+                    grams = float(args[-1]) if args and args[-1].lstrip("-").isdigit() else 100.0
+
+                    if food_name:
+                        with console.status(
+                            f"[dim cyan]  Looking up '{food_name}' in USDA FoodData Central...[/dim cyan]",
+                            spinner="earth",
+                        ):
+                            food = self.fdc.search_and_get(
+                                food_name, serving_g=grams, include_aminos=include_aminos
+                            )
+                        if food:
+                            console.print(Panel(
+                                food.full_report(include_aminos=include_aminos),
+                                title=f"[cyan]USDA FoodData Central[/cyan]  [dim]FDC#{food.fdc_id}[/dim]",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                        else:
+                            console.print(f"[dim]  No results for '{food_name}'. Try a different name.[/dim]")
+                    else:
+                        console.print("[dim]  Usage: /food chicken breast [150][/dim]")
+
+                elif q_lower.startswith("/compare "):
+                    raw = query[9:].strip()
+                    if raw:
+                        foods = [f.strip() for f in raw.split(",") if f.strip()]
+                        if len(foods) >= 2:
+                            with console.status(
+                                f"[dim cyan]  Comparing {len(foods)} foods...[/dim cyan]",
+                                spinner="earth",
+                            ):
+                                table_str = self.fdc.compare_foods(foods)
+                            console.print(Panel(
+                                table_str,
+                                title="[cyan]Food Comparison[/cyan]  [dim]USDA FoodData Central[/dim]",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 1),
+                            ))
+                        else:
+                            console.print("[dim]  Usage: /compare chicken breast, salmon, tofu[/dim]")
+                    else:
+                        console.print("[dim]  Usage: /compare chicken breast, salmon, tofu[/dim]")
+
+                # ── Training Load Commands ──────────────────────────────────
+
+                elif q_lower.startswith("/session "):
+                    parts = query.split()
+                    if len(parts) >= 4:
+                        try:
+                            day = int(parts[1])
+                            duration = float(parts[2])
+                            rpe = float(parts[3])
+                            sport = " ".join(parts[4:]) if len(parts) > 4 else ""
+                            s = TrainingSession(date_offset=day, duration_min=duration, rpe=rpe, sport=sport)
+                            self._pending_sessions.append(s)
+                            console.print(
+                                f"[dim]  Session logged: Day {day} | {duration:.0f}min | "
+                                f"RPE {rpe} | Load {s.session_load:.0f} AU[/dim]\n"
+                                f"[dim]  Total sessions: {len(self._pending_sessions)}. "
+                                f"Use /load to compute ATL/CTL/TSB.[/dim]"
+                            )
+                        except ValueError:
+                            console.print("[dim]  Usage: /session <day_offset> <minutes> <rpe_1-10> [sport][/dim]")
+                    else:
+                        console.print("[dim]  Usage: /session 0 60 7 cycling[/dim]")
+
+                elif q_lower == "/load":
+                    if not self._pending_sessions:
+                        console.print(
+                            "[dim]  No sessions logged. Use /session <day> <min> <rpe> to add sessions.[/dim]\n"
+                            "[dim]  Example: /session 0 60 7 running[/dim]"
+                        )
+                    else:
+                        metrics = self.load_calc.compute(self._pending_sessions)
+                        ramp = self.load_calc.ramp_rate(self._pending_sessions)
+                        content = metrics.display() + "\n"
+                        if "ramp_rates" in ramp:
+                            content += "\n  Ramp Rate Analysis:\n"
+                            for r in ramp["ramp_rates"]:
+                                safe_icon = "✅" if r["safe"] else "⚠️"
+                                content += (
+                                    f"  Week {r['week']}: {r['load_au']:.0f} AU  "
+                                    f"({r['ramp_pct']:+.1f}%)  {safe_icon}\n"
+                                )
+                        console.print(Panel(
+                            content,
+                            title=f"[cyan]Training Load Analysis[/cyan]  [dim]({len(self._pending_sessions)} sessions)[/dim]",
+                            border_style="cyan",
+                            box=box.ROUNDED,
+                            padding=(0, 2),
+                        ))
+
+                elif q_lower.startswith("/blocks"):
+                    parts = query.split()
+                    sport = parts[1].lower() if len(parts) > 1 else "strength"
+                    athlete_name = self.profile.data.get("name", "")
+                    blocks = get_block_plan(sport)
+                    report = format_block_plan(blocks, athlete_name=athlete_name)
+                    console.print(Panel(
+                        report,
+                        title=f"[cyan]Periodization Plan[/cyan]  [dim]{sport.title()}[/dim]",
+                        border_style="cyan",
+                        box=box.ROUNDED,
+                        padding=(0, 2),
+                    ))
+
+                elif q_lower.startswith("/prilepin "):
+                    try:
+                        pct = float(query.split()[1])
+                        result = prilepins_recommendation(pct)
+                        console.print(Panel(
+                            result["note"] + "\n\n"
+                            f"  Optimal total reps: {result.get('optimal_total_reps', 'N/A')}\n"
+                            f"  Rep range: {result.get('rep_range', 'N/A')}\n"
+                            f"  Evidence: {result['evidence']}",
+                            title=f"[cyan]Prilepin's Table[/cyan]  [dim]{pct:.0f}% intensity[/dim]",
+                            border_style="cyan",
+                            box=box.SIMPLE,
+                        ))
+                    except (ValueError, IndexError):
+                        console.print("[dim]  Usage: /prilepin 80[/dim]")
+
+                # ── Blood Panel Commands ─────────────────────────────────────
+
+                elif q_lower.startswith("/labs "):
+                    raw = query[6:].strip().split()
+                    if len(raw) >= 2 and len(raw) % 2 == 0:
+                        panel: dict[str, float] = {}
+                        valid = True
+                        for i in range(0, len(raw), 2):
+                            name_part = raw[i]
+                            try:
+                                val = float(raw[i + 1])
+                                panel[name_part] = val
+                            except ValueError:
+                                console.print(f"[dim red]  Invalid value for {name_part}: {raw[i+1]}[/dim red]")
+                                valid = False
+                                break
+                        if valid and panel:
+                            sex = self.profile.data.get("sex", "male")
+                            athlete_name = self.profile.data.get("name", "")
+                            report = interpret_panel(panel, sex=sex, athlete_name=athlete_name)
+                            console.print(Panel(
+                                report,
+                                title="[cyan]Blood Panel Analysis[/cyan]  [dim]USDA / Clinical Reference[/dim]",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                    else:
+                        console.print("[dim]  Usage: /labs ferritin 25 vitamin_d 35 cortisol 12[/dim]")
+
+                elif q_lower.startswith("/biomarker "):
+                    parts = query.split(maxsplit=2)
+                    if len(parts) == 3:
+                        try:
+                            name_part = parts[1]
+                            val = float(parts[2])
+                            sex = self.profile.data.get("sex", "male")
+                            result = self.bio_interp.interpret(name_part, val, sex=sex)
+                            if result:
+                                console.print(Panel(
+                                    result.display() +
+                                    (f"\n\n  Evidence: {result.ref.evidence}" if result.ref.evidence else ""),
+                                    title=f"[cyan]Biomarker[/cyan]  {result.name}",
+                                    border_style="cyan",
+                                    box=box.SIMPLE,
+                                ))
+                            else:
+                                console.print(f"[dim]  '{name_part}' not in biomarker database. Try: ferritin, testosterone, vitamin_d, cortisol, crp...[/dim]")
+                        except ValueError:
+                            console.print("[dim]  Usage: /biomarker ferritin 45[/dim]")
+                    else:
+                        console.print("[dim]  Usage: /biomarker ferritin 45[/dim]")
+
+                # ── Sleep Optimization Commands ──────────────────────────────
+
+                elif q_lower.startswith("/sleep "):
+                    bedtime = query.split()[1] if len(query.split()) > 1 else "23:00"
+                    cycles = optimal_wake_times(bedtime)
+                    console.print(Panel(
+                        cycles.display(),
+                        title=f"[cyan]Sleep Cycle Calculator[/cyan]  [dim]Bedtime: {bedtime}[/dim]",
+                        border_style="cyan",
+                        box=box.ROUNDED,
+                        padding=(0, 2),
+                    ))
+
+                elif q_lower.startswith("/chronotype"):
+                    parts = query.split()
+                    if len(parts) > 1:
+                        try:
+                            meq = int(parts[1])
+                            result = classify_chronotype(meq_score=meq)
+                        except ValueError:
+                            # Treat as bedtime
+                            result = classify_chronotype(bedtime_wfree=parts[1])
+                    else:
+                        # Default intermediate bear if no input
+                        result = classify_chronotype(meq_score=55)
+
+                    if "error" in result:
+                        console.print(f"[dim]  {result['error']}[/dim]")
+                    else:
+                        sport = self.profile.data.get("sport", "general")
+                        target = athlete_sleep_target(sport)
+                        console.print(Panel(
+                            f"[bold]{result['label']}[/bold]\n\n"
+                            f"  {result['description']}\n\n"
+                            f"  Sleep window: {result['sleep_window'][0]} – {result['sleep_window'][1]}\n"
+                            f"  Peak alertness: {result['peak_alertness'][0]} – {result['peak_alertness'][1]}\n"
+                            f"  Peak physical performance: {result['peak_physical'][0]} – {result['peak_physical'][1]}\n\n"
+                            f"  Athlete note: {result['athlete_notes']}\n\n"
+                            f"  Sleep target ({sport}): {target['optimal_hours']}h optimal / {target['min_hours']}h minimum\n"
+                            f"  Evidence: {result['evidence']}",
+                            title=f"[cyan]Chronotype Analysis[/cyan]",
+                            border_style="cyan",
+                            box=box.ROUNDED,
+                            padding=(0, 2),
+                        ))
+
+                elif q_lower.startswith("/caffeine "):
+                    parts = query.split()
+                    if len(parts) >= 3:
+                        try:
+                            dose = float(parts[1])
+                            hours = float(parts[2])
+                            fast = len(parts) < 4 or parts[3].lower() != "slow"
+                            status = caffeine_clearance(dose, hours, fast_metabolizer=fast)
+                            console.print(Panel(
+                                status.display(),
+                                title="[cyan]Caffeine Clearance[/cyan]  [dim](CYP1A2 pharmacokinetics)[/dim]",
+                                border_style="cyan",
+                                box=box.SIMPLE,
+                            ))
+                        except ValueError:
+                            console.print("[dim]  Usage: /caffeine 200 6 [slow][/dim]")
+                    else:
+                        console.print("[dim]  Usage: /caffeine <mg> <hours_since_dose> [slow][/dim]")
+
+                elif q_lower.startswith("/sleepdebt "):
+                    raw = query.split()[1:]
+                    if raw:
+                        try:
+                            nights = [float(h) for h in raw]
+                            sex = self.profile.data.get("sex", "male")
+                            sport = self.profile.data.get("sport", "general")
+                            target = athlete_sleep_target(sport)
+                            debt = sleep_debt_report(nights, target_hours=target["optimal_hours"])
+                            console.print(Panel(
+                                debt.display(),
+                                title=f"[cyan]Sleep Debt Tracker[/cyan]  [dim]Target: {target['optimal_hours']}h ({sport})[/dim]",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                        except ValueError:
+                            console.print("[dim]  Usage: /sleepdebt 7 6.5 8 7 6[/dim]")
+                    else:
+                        console.print("[dim]  Usage: /sleepdebt 7 6.5 8 7 6[/dim]")
+
+                elif q_lower == "/hormones":
+                    console.print(Panel(
+                        format_hormonal_windows(),
+                        title="[cyan]Hormonal Sleep Windows[/cyan]",
+                        border_style="cyan",
+                        box=box.ROUNDED,
+                        padding=(0, 2),
+                    ))
+
+                elif q_lower.startswith("/bedtime"):
+                    parts = query.split()
+                    sport = parts[1] if len(parts) > 1 else self.profile.data.get("sport", "general")
+                    # Get chronotype from profile if set, else default bear
+                    ct_data = self.profile.data.get("chronotype", "bear")
+                    sleep_t = CHRONOTYPE_PROFILES.get(ct_data, CHRONOTYPE_PROFILES["bear"])["sleep_window"][0]
+                    protocol = pre_sleep_protocol(chronotype=ct_data, sport=sport, sleep_time=sleep_t)
+                    console.print(Panel(
+                        protocol,
+                        title=f"[cyan]Pre-Sleep Protocol[/cyan]  [dim]{ct_data.title()} chronotype · {sport}[/dim]",
+                        border_style="cyan",
+                        box=box.ROUNDED,
+                        padding=(0, 2),
+                    ))
 
                 # ── Research Plan Only ──────────────────────────────────────
 
