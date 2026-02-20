@@ -56,6 +56,19 @@ from tools.sleep_optimizer import (
     sleep_debt_report, athlete_sleep_target, format_hormonal_windows, pre_sleep_protocol,
     CHRONOTYPE_PROFILES,
 )
+from tools.recovery import (
+    HRVReading, compute_readiness, format_readiness_report,
+    estimate_doms, supercompensation_window, assess_deload_need,
+    recovery_modality_guide, mps_timing_guide,
+    EXERCISE_DAMAGE_COEFFICIENTS,
+)
+from tools.hydration import (
+    calculate_sweat_loss, estimate_sweat_loss_by_sport,
+    design_rehydration_protocol, format_rehydration_report,
+    urine_color_status, hyponatremia_risk, pre_exercise_hydration_plan,
+    SPORT_SWEAT_RATES,
+)
+from agents.sports_agent import run_sports_assessment
 from memory.store import KiwiMemory
 from memory.profile import UserProfile
 
@@ -392,6 +405,22 @@ class Kiwi:
             "  [cyan]/sleepdebt <h1> <h2>...[/cyan]  Sleep debt from recent nights (hours)\n"
             "  [cyan]/hormones[/cyan]                 Hormonal sleep window reference\n"
             "  [cyan]/bedtime [sport][/cyan]          Pre-sleep protocol for your chronotype\n\n"
+            "[bold dim cyan]Recovery:[/bold dim cyan]\n"
+            "  [cyan]/readiness <rmssd1> <rmssd2>...[/cyan]  HRV readiness score (rMSSD values)\n"
+            "  [cyan]/doms <type> <rpe> <min>[/cyan]   DOMS severity estimate (session type, RPE, minutes)\n"
+            "  [cyan]/supercomp <type> <h>[/cyan]     Supercompensation window (session type, hours ago)\n"
+            "  [cyan]/deload [tsb] [days] [weeks][/cyan]  Deload trigger analysis\n"
+            "  [cyan]/recover [goal] [session][/cyan]  Recovery modality guide\n"
+            "  [cyan]/mps [weight_kg][/cyan]           MPS optimization timing guide\n\n"
+            "[bold dim cyan]Hydration:[/bold dim cyan]\n"
+            "  [cyan]/sweat <pre_kg> <post_kg> [fluid_L] [hrs][/cyan]  Sweat loss + electrolytes\n"
+            "  [cyan]/sweatest <sport> <hrs>[/cyan]   Estimate sweat loss by sport\n"
+            "  [cyan]/rehydrate <pre_kg> <post_kg>[/cyan]  Full rehydration protocol\n"
+            "  [cyan]/urine <1-8>[/cyan]               Urine color hydration status\n"
+            "  [cyan]/hyponatremia <hrs> <L_hr>[/cyan]  EAH risk assessment\n"
+            "  [cyan]/prehydrate [sport] [hrs_to_start][/cyan]  Pre-exercise hydration plan\n\n"
+            "[bold dim cyan]Sports Intelligence:[/bold dim cyan]\n"
+            "  [cyan]/assess [notes][/cyan]            Full AI sports readiness assessment (uses profile + HRV data)\n\n"
             "[bold dim cyan]Session:[/bold dim cyan]\n"
             "  [cyan]/clear[/cyan]                 Clear conversation context\n"
             "  [cyan]/new[/cyan]                   New research thread\n"
@@ -920,6 +949,360 @@ class Kiwi:
                         box=box.ROUNDED,
                         padding=(0, 2),
                     ))
+
+                # ── Recovery Commands ────────────────────────────────────────
+
+                elif q_lower.startswith("/readiness"):
+                    raw = query.split()[1:]
+                    if raw:
+                        try:
+                            rmssd_vals = [float(v) for v in raw]
+                            hrv_readings = [HRVReading(rmssd=v, resting_hr=60.0) for v in rmssd_vals]
+                            tsb = self._last_tsb if hasattr(self, "_last_tsb") else None
+                            sleep_debt = self.profile.data.get("sleep_debt_hours", 0.0)
+                            r = compute_readiness(hrv_readings, tsb=tsb, sleep_debt_hours=sleep_debt)
+                            console.print(Panel(
+                                format_readiness_report(r),
+                                title=f"[cyan]HRV Readiness[/cyan]  [dim]Score: {r.score:.0f}/100[/dim]",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                        except ValueError:
+                            console.print("[dim]  Usage: /readiness 55 58 52 61 64  (rMSSD values oldest→newest)[/dim]")
+                    else:
+                        console.print("[dim]  Usage: /readiness <rmssd1> <rmssd2> ...  (at least 2 values)[/dim]")
+
+                elif q_lower.startswith("/doms "):
+                    parts = query.split(maxsplit=3)
+                    # /doms <type> <rpe> <min>
+                    if len(parts) >= 4:
+                        try:
+                            session_type = parts[1]
+                            rpe = float(parts[2])
+                            minutes = int(parts[3].split()[0])
+                            trained = self.profile.data.get("training_status", "trained")
+                            d = estimate_doms(session_type, rpe, minutes, trained_status=trained)
+                            lines = [
+                                f"Session Type: {session_type.replace('_', ' ').title()}",
+                                f"Severity: {d.severity.upper()}  (score {d.severity_score:.1f}/10)",
+                                f"Peak DOMS: ~{d.peak_hours}h post-exercise",
+                                f"Resolution: ~{d.resolution_hours}h",
+                                f"Mechanism: {d.primary_mechanism}",
+                                f"Evidence: {d.evidence}",
+                            ]
+                            if d.notes:
+                                lines.append("\nNotes:")
+                                for n in d.notes:
+                                    lines.append(f"  • {n}")
+                            console.print(Panel(
+                                "\n".join(lines),
+                                title=f"[cyan]DOMS Estimate[/cyan]",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                        except (ValueError, IndexError):
+                            console.print("[dim]  Usage: /doms strength_eccentric_heavy 8 60\n"
+                                          "  Types: strength_eccentric_heavy, plyometrics, running_new, cycling, swimming...[/dim]")
+                    else:
+                        console.print("[dim]  Usage: /doms <session_type> <rpe> <duration_min>[/dim]\n"
+                                      "[dim]  Types: " + ", ".join(list(EXERCISE_DAMAGE_COEFFICIENTS.keys())[:4]) + "...[/dim]")
+
+                elif q_lower.startswith("/supercomp "):
+                    parts = query.split()
+                    if len(parts) >= 3:
+                        try:
+                            stype = parts[1]
+                            hours_ago = float(parts[2])
+                            result = supercompensation_window(stype, hours_ago)
+                            lines = [
+                                f"Session Type: {result['session_type']}",
+                                f"Hours Elapsed: {result['hours_elapsed']:.0f}h",
+                                f"Current Phase: {result['current_phase'].replace('_', ' ').title()}",
+                            ]
+                            if result["hours_to_supercomp_peak"] is None:
+                                lines.append("Supercompensation Window: PASSED — schedule next session soon")
+                            elif result["hours_to_supercomp_peak"] == 0:
+                                lines.append("Supercompensation Window: NOW — optimal training time!")
+                            else:
+                                lines.append(f"Hours to Supercomp Peak: {result['hours_to_supercomp_peak']:.0f}h")
+                            start, end = result["optimal_next_session_window_hours"]
+                            lines.append(f"Optimal Next Session: {start:.0f}–{end:.0f}h post-session")
+                            lines.append(f"\n{result['evidence']}")
+                            console.print(Panel(
+                                "\n".join(lines),
+                                title=f"[cyan]Supercompensation Window[/cyan]",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                        except ValueError:
+                            console.print("[dim]  Usage: /supercomp strength 24  (type, hours since session)[/dim]")
+                    else:
+                        console.print("[dim]  Usage: /supercomp <strength|endurance|high_intensity_interval|team_sport> <hours_ago>[/dim]")
+
+                elif q_lower.startswith("/deload"):
+                    parts = query.split()
+                    try:
+                        tsb = float(parts[1]) if len(parts) > 1 else None
+                        hard_days = int(parts[2]) if len(parts) > 2 else 0
+                        weeks = int(parts[3]) if len(parts) > 3 else 0
+                        sleep_debt = self.profile.data.get("sleep_debt_hours", 0.0)
+                        subj = self.profile.data.get("subjective_fatigue")
+                        d = assess_deload_need(
+                            tsb=tsb,
+                            consecutive_hard_days=hard_days,
+                            weeks_since_deload=weeks,
+                            sleep_debt_hours=sleep_debt,
+                            subjective_fatigue=int(subj) if subj else None,
+                        )
+                        status_color = "red" if d.should_deload else "green"
+                        lines = [
+                            f"[{status_color}]{'⚠ DELOAD RECOMMENDED' if d.should_deload else '✓ No deload needed'}[/{status_color}]",
+                            f"Urgency: {d.urgency.upper()}",
+                        ]
+                        if d.should_deload:
+                            lines.append(f"Type: {d.deload_type}")
+                            lines.append(f"\nTriggers:")
+                            for t in d.triggered_by:
+                                lines.append(f"  • {t}")
+                            lines.append(f"\nGuidance:")
+                            for g in d.deload_guidance:
+                                lines.append(f"  • {g}")
+                        lines.append(f"\nEvidence: {d.evidence}")
+                        console.print(Panel(
+                            "\n".join(lines),
+                            title="[cyan]Deload Assessment[/cyan]",
+                            border_style="cyan" if not d.should_deload else "yellow",
+                            box=box.ROUNDED,
+                            padding=(0, 2),
+                        ))
+                    except ValueError:
+                        console.print("[dim]  Usage: /deload [tsb] [consecutive_hard_days] [weeks_since_deload][/dim]")
+
+                elif q_lower.startswith("/recover"):
+                    parts = query.split()
+                    goal = parts[1] if len(parts) > 1 else "general"
+                    session_type = parts[2] if len(parts) > 2 else "strength"
+                    guide = recovery_modality_guide(goal=goal, post_session_type=session_type)
+                    console.print(Panel(
+                        guide,
+                        title=f"[cyan]Recovery Modalities[/cyan]  [dim]Goal: {goal} | Post: {session_type}[/dim]",
+                        border_style="cyan",
+                        box=box.ROUNDED,
+                        padding=(0, 2),
+                    ))
+
+                elif q_lower.startswith("/mps"):
+                    parts = query.split()
+                    weight = float(parts[1]) if len(parts) > 1 else self.profile.data.get("weight_kg", 75.0)
+                    guide = mps_timing_guide(body_weight_kg=float(weight))
+                    console.print(Panel(
+                        guide,
+                        title=f"[cyan]MPS Timing Guide[/cyan]  [dim]{weight:.0f}kg[/dim]",
+                        border_style="cyan",
+                        box=box.ROUNDED,
+                        padding=(0, 2),
+                    ))
+
+                # ── Hydration Commands ───────────────────────────────────────
+
+                elif q_lower.startswith("/sweat "):
+                    parts = query.split()
+                    if len(parts) >= 3:
+                        try:
+                            pre = float(parts[1])
+                            post = float(parts[2])
+                            fluid = float(parts[3]) if len(parts) > 3 else 0.0
+                            hrs = float(parts[4]) if len(parts) > 4 else 1.0
+                            sport = self.profile.data.get("sport", "general")
+                            sl = calculate_sweat_loss(pre, post, fluid, hrs, sport=sport)
+                            console.print(Panel(
+                                sl.summary(),
+                                title=f"[cyan]Sweat Loss Analysis[/cyan]  [dim]{sport}[/dim]",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                        except ValueError:
+                            console.print("[dim]  Usage: /sweat <pre_kg> <post_kg> [fluid_L] [duration_hrs][/dim]")
+                    else:
+                        console.print("[dim]  Usage: /sweat <pre_kg> <post_kg> [fluid_L] [duration_hrs][/dim]")
+
+                elif q_lower.startswith("/sweatest "):
+                    parts = query.split()
+                    if len(parts) >= 3:
+                        try:
+                            sport = parts[1]
+                            hrs = float(parts[2])
+                            weight = self.profile.data.get("weight_kg", 75.0)
+                            intensity = parts[3] if len(parts) > 3 else "moderate"
+                            sl = estimate_sweat_loss_by_sport(sport, hrs, body_weight_kg=float(weight),
+                                                              intensity=intensity)
+                            console.print(Panel(
+                                sl.summary(),
+                                title=f"[cyan]Sweat Estimate[/cyan]  [dim]{sport} · {hrs:.1f}h · {intensity}[/dim]",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                        except ValueError:
+                            console.print("[dim]  Usage: /sweatest running 1.5 [easy|moderate|hard][/dim]")
+                    else:
+                        console.print("[dim]  Usage: /sweatest <sport> <hours> [intensity]  "
+                                      "Sports: " + ", ".join(list(SPORT_SWEAT_RATES.keys())[:4]) + "...[/dim]")
+
+                elif q_lower.startswith("/rehydrate "):
+                    parts = query.split()
+                    if len(parts) >= 3:
+                        try:
+                            pre = float(parts[1])
+                            post = float(parts[2])
+                            fluid = float(parts[3]) if len(parts) > 3 else 0.0
+                            hrs = float(parts[4]) if len(parts) > 4 else 1.0
+                            time_next = float(parts[5]) if len(parts) > 5 else 24.0
+                            sport = self.profile.data.get("sport", "general")
+                            sl = calculate_sweat_loss(pre, post, fluid, hrs, sport=sport)
+                            protocol = design_rehydration_protocol(sl, time_next)
+                            console.print(Panel(
+                                format_rehydration_report(protocol, sl),
+                                title="[cyan]Rehydration Protocol[/cyan]",
+                                border_style="cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                        except ValueError:
+                            console.print("[dim]  Usage: /rehydrate <pre_kg> <post_kg> [fluid_L] [duration_h] [hours_to_next_session][/dim]")
+                    else:
+                        console.print("[dim]  Usage: /rehydrate <pre_kg> <post_kg>[/dim]")
+
+                elif q_lower.startswith("/urine "):
+                    parts = query.split()
+                    if len(parts) >= 2:
+                        try:
+                            color_num = int(parts[1])
+                            result = urine_color_status(color_num)
+                            urgent_flag = " ⚠" if result["urgent"] else ""
+                            lines = [
+                                f"Color #{result['color_number']}: {result['color_name']}",
+                                f"Status: {result['status']}{urgent_flag}",
+                                f"Action: {result['action']}",
+                                f"Evidence: {result['evidence']}",
+                            ]
+                            console.print(Panel(
+                                "\n".join(lines),
+                                title="[cyan]Urine Color / Hydration Status[/cyan]",
+                                border_style="red" if result["urgent"] else "cyan",
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                        except ValueError:
+                            console.print("[dim]  Usage: /urine <1-8>  (1=pale, 8=dark brown)[/dim]")
+                    else:
+                        console.print("[dim]  Usage: /urine <1-8>  (Armstrong urine color scale)[/dim]")
+
+                elif q_lower.startswith("/hyponatremia "):
+                    parts = query.split()
+                    if len(parts) >= 3:
+                        try:
+                            event_hrs = float(parts[1])
+                            intake_L_hr = float(parts[2])
+                            sport = parts[3] if len(parts) > 3 else self.profile.data.get("sport", "endurance")
+                            weight = self.profile.data.get("weight_kg", 70.0)
+                            result = hyponatremia_risk(event_hrs, intake_L_hr, sport, float(weight))
+                            risk_color = {"HIGH": "red", "MODERATE": "yellow", "LOW": "green"}.get(result["risk_level"], "cyan")
+                            lines = [
+                                f"[{risk_color}]Risk Level: {result['risk_level']}[/{risk_color}]",
+                                "",
+                                "Risk Factors:",
+                            ]
+                            for d in result["drivers"]:
+                                lines.append(f"  • {d}")
+                            lines.append(f"\nRecommendation: {result['recommendation']}")
+                            lines.append(f"\n⚠ {result['key_warning']}")
+                            lines.append(f"\nEvidence: {result['evidence']}")
+                            console.print(Panel(
+                                "\n".join(lines),
+                                title="[cyan]Hyponatremia (EAH) Risk Assessment[/cyan]",
+                                border_style=risk_color,
+                                box=box.ROUNDED,
+                                padding=(0, 2),
+                            ))
+                        except ValueError:
+                            console.print("[dim]  Usage: /hyponatremia <event_hours> <fluid_L_per_hr> [sport][/dim]")
+                    else:
+                        console.print("[dim]  Usage: /hyponatremia <event_hours> <L/hr intake>[/dim]")
+
+                elif q_lower.startswith("/prehydrate"):
+                    parts = query.split()
+                    sport = parts[1] if len(parts) > 1 else self.profile.data.get("sport", "general")
+                    hours_to_start = float(parts[2]) if len(parts) > 2 else 3.0
+                    weight = self.profile.data.get("weight_kg", 75.0)
+                    plan = pre_exercise_hydration_plan(
+                        float(weight), event_duration_hours=1.5, sport=sport,
+                        start_hours_from_now=hours_to_start,
+                    )
+                    lines = [
+                        f"Pre-exercise fluid target: {plan['pre_exercise_target_mL']}mL",
+                        f"Intra-exercise target: {plan['intra_exercise_L_hr']} L/h",
+                        f"Expected sweat loss: ~{plan['total_expected_sweat_L']}L",
+                        f"Urine target: {plan['urine_target']}",
+                        "",
+                        "Schedule:",
+                    ]
+                    for step in plan["schedule"]:
+                        lines.append(f"  • {step}")
+                    lines.append(f"\nSodium: {plan['sodium_recommendation']}")
+                    lines.append(f"Evidence: {plan['evidence']}")
+                    console.print(Panel(
+                        "\n".join(lines),
+                        title=f"[cyan]Pre-Exercise Hydration Plan[/cyan]  [dim]{sport} · T-{hours_to_start:.0f}h[/dim]",
+                        border_style="cyan",
+                        box=box.ROUNDED,
+                        padding=(0, 2),
+                    ))
+
+                # ── Sports Intelligence Assessment ──────────────────────────
+
+                elif q_lower.startswith("/assess"):
+                    notes = query[8:].strip() if len(query) > 8 else ""
+                    console.print()
+                    console.print(Panel(
+                        "[dim]Running Sports Intelligence Assessment...[/dim]",
+                        title="[bold cyan]Sports Intelligence Agent[/bold cyan]",
+                        border_style="cyan",
+                        box=box.ROUNDED,
+                        padding=(0, 2),
+                    ))
+                    console.print()
+
+                    # Build athlete data from profile + any recent state
+                    athlete_data = {
+                        "athlete_name": self.profile.data.get("name", "Athlete"),
+                        "sport": self.profile.data.get("sport", "General"),
+                        "training_phase": self.profile.data.get("training_phase", "General Preparation"),
+                        "hrv_readings": [],  # User should provide via /readiness first; stored in profile
+                        "tsb": getattr(self, "_last_tsb", None),
+                        "atl": getattr(self, "_last_atl", None),
+                        "ctl": getattr(self, "_last_ctl", None),
+                        "sleep_debt_hours": self.profile.data.get("sleep_debt_hours", 0.0),
+                        "consecutive_hard_days": self.profile.data.get("consecutive_hard_days", 0),
+                        "weeks_since_deload": self.profile.data.get("weeks_since_deload", 0),
+                        "subjective_fatigue": self.profile.data.get("subjective_fatigue"),
+                        "biomarker_summary": self.profile.data.get("last_biomarker_summary", ""),
+                        "planned_session": self.profile.data.get("planned_session", ""),
+                        "notes": notes or self.profile.data.get("athlete_notes", ""),
+                    }
+
+                    def on_assess_text(text: str):
+                        console.print(text, end="", markup=False)
+
+                    console.print()
+                    assessment = await run_sports_assessment(self.client, athlete_data, on_text=on_assess_text)
+                    console.print()
+                    console.print()
+                    console.rule("[dim]Sports Intelligence Assessment Complete[/dim]")
 
                 # ── Research Plan Only ──────────────────────────────────────
 

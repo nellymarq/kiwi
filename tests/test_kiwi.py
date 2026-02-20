@@ -38,6 +38,17 @@ def test_all_module_imports():
         classify_chronotype, optimal_wake_times, caffeine_clearance,
         sleep_debt_report, CHRONOTYPE_PROFILES, ATHLETE_SLEEP_TARGETS,
     )
+    from tools.recovery import (
+        compute_readiness, estimate_doms, assess_deload_need,
+        recovery_modality_guide, mps_timing_guide,
+        EXERCISE_DAMAGE_COEFFICIENTS, RECOVERY_MODALITIES,
+    )
+    from tools.hydration import (
+        calculate_sweat_loss, estimate_sweat_loss_by_sport,
+        design_rehydration_protocol, urine_color_status,
+        SPORT_SWEAT_RATES, SWEAT_ELECTROLYTE_CONCENTRATION,
+    )
+    from agents.sports_agent import SportsAgent, run_sports_assessment
     from memory.store import KiwiMemory
     from memory.profile import UserProfile
 
