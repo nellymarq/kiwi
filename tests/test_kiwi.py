@@ -49,6 +49,17 @@ def test_all_module_imports():
         SPORT_SWEAT_RATES, SWEAT_ELECTROLYTE_CONCENTRATION,
     )
     from agents.sports_agent import SportsAgent, run_sports_assessment
+    from tools.supplements import SUPPLEMENT_DB, resolve_supplement, format_dosing_protocol
+    from tools.body_composition import (
+        classify_body_fat, estimate_body_fat_jackson_pollock_3,
+        analyze_body_composition, calculate_ffmi,
+        calculate_energy_availability, safe_weight_change_rate,
+    )
+    from tools.training_zones import (
+        estimate_vo2max_cooper, predict_hr_max,
+        calculate_hr_zones_karvonen, calculate_power_zones,
+        calculate_pace_zones, recommend_intensity_distribution,
+    )
     from memory.store import KiwiMemory
     from memory.profile import UserProfile
 

@@ -253,7 +253,7 @@ async def run_sports_assessment(
         load_parts.append(f"ATL (Fatigue): {athlete_data['atl']:.1f}")
     if athlete_data.get("ctl") is not None:
         load_parts.append(f"CTL (Fitness): {athlete_data['ctl']:.1f}")
-    load_data = "  ".join(load_parts) if load_parts else ""
+    load_data = "\n".join(load_parts) if load_parts else ""
 
     # Step 4: Build context for agent
     context = {

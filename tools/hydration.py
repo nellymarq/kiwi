@@ -159,10 +159,14 @@ def calculate_sweat_loss(
         heat_adjusted = True
 
     # Acclimatization: higher sweat rate, lower sodium concentration
+    # Heat-acclimatized athletes upregulate aldosterone, conserving Na+.
+    # Typical acclimatized [Na+]: 30–60 mmol/L vs. 40–80 mmol/L unacclimatized.
+    # Floor of 25 mmol/L represents the lower physiological bound for well-acclimatized athletes.
+    # Reference: Nielsen et al. (1993) Acta Physiol Scand — Na+ conservation with acclimatization.
     na_concentration = SWEAT_ELECTROLYTE_CONCENTRATION["sodium"]["mean_mmol_L"]
     if acclimatized:
-        # Acclimatized athletes sweat more but conserve sodium (lower [Na+])
-        na_concentration = max(25, na_concentration - 15)
+        # Acclimatized athletes sweat more (10% higher rate) but conserve sodium (lower [Na+])
+        na_concentration = max(25, na_concentration - 15)  # floor 25 mmol/L (physiological minimum)
         heat_factor *= 1.10
 
     sweat_liters_corrected = sweat_liters * heat_factor
@@ -266,6 +270,7 @@ def design_rehydration_protocol(
     sweat_loss: SweatLoss,
     time_to_next_activity_hours: float = 24.0,
     weight_deficit_pct: Optional[float] = None,
+    body_weight_kg: float = 75.0,
 ) -> RehydrationProtocol:
     """
     Design an evidence-based rehydration protocol.
@@ -277,7 +282,9 @@ def design_rehydration_protocol(
     Args:
         sweat_loss: SweatLoss from calculate_sweat_loss().
         time_to_next_activity_hours: Hours until next training or competition.
-        weight_deficit_pct: Optional body weight deficit %. If None, derived from sweat loss.
+        weight_deficit_pct: Optional explicit body weight deficit %. If provided, used directly.
+            If None, estimated from sweat loss relative to body_weight_kg.
+        body_weight_kg: Athlete body weight for dehydration % calculation. Default 75.0.
 
     Returns:
         RehydrationProtocol with targets, ORS recipe, and timing.
@@ -318,11 +325,13 @@ def design_rehydration_protocol(
 
     # Warnings
     warnings: list[str] = []
-    sweat_pct_body_weight = (sweat_loss.liters / 75) * 100  # crude proxy
-    if weight_deficit_pct is not None and weight_deficit_pct > 2:
+    # Personalized dehydration percentage using athlete's actual body weight
+    sweat_pct_body_weight = (sweat_loss.liters / max(body_weight_kg, 40.0)) * 100
+    effective_deficit_pct = weight_deficit_pct if weight_deficit_pct is not None else sweat_pct_body_weight
+    if effective_deficit_pct > 2:
         warnings.append(
-            f"Body weight deficit {weight_deficit_pct:.1f}% — dehydration is impairing performance "
-            f"(>2% threshold). Rehydrate before next session."
+            f"Body weight deficit ~{effective_deficit_pct:.1f}% — dehydration at this level impairs "
+            f"performance (>2% threshold). Rehydrate before next session."
         )
     if sweat_loss.sodium_mg > 3000:
         warnings.append(

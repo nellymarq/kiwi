@@ -69,6 +69,19 @@ from tools.hydration import (
     SPORT_SWEAT_RATES,
 )
 from agents.sports_agent import run_sports_assessment
+from tools.supplements import resolve_supplement, format_dosing_protocol, list_supplements_by_category
+from tools.body_composition import (
+    estimate_body_fat_jackson_pollock_3, analyze_body_composition,
+    calculate_ffmi, calculate_energy_availability, safe_weight_change_rate,
+    format_composition_report, SPORT_BF_TARGETS,
+)
+from tools.training_zones import (
+    estimate_vo2max_cooper, estimate_vo2max_hr_based, predict_hr_max,
+    calculate_hr_zones_karvonen, calculate_power_zones,
+    calculate_pace_zones, recommend_intensity_distribution,
+    format_hr_zones, format_power_zones, format_pace_zones,
+    format_intensity_distribution,
+)
 from memory.store import KiwiMemory
 from memory.profile import UserProfile
 
@@ -419,6 +432,22 @@ class Kiwi:
             "  [cyan]/urine <1-8>[/cyan]               Urine color hydration status\n"
             "  [cyan]/hyponatremia <hrs> <L_hr>[/cyan]  EAH risk assessment\n"
             "  [cyan]/prehydrate [sport] [hrs_to_start][/cyan]  Pre-exercise hydration plan\n\n"
+            "[bold dim cyan]Supplements:[/bold dim cyan]\n"
+            "  [cyan]/supp <name>[/cyan]              Dosing protocol for a supplement\n"
+            "  [cyan]/supplist [category][/cyan]      List all supplements (or filter: ergogenic/health/recovery)\n\n"
+            "[bold dim cyan]Body Composition:[/bold dim cyan]\n"
+            "  [cyan]/bodyfat <kg> <bf%> [sport][/cyan]  Body composition analysis\n"
+            "  [cyan]/ffmi <kg> <bf%> <height_cm>[/cyan] Fat-Free Mass Index\n"
+            "  [cyan]/ea <kcal_in> <kcal_ex> <lm_kg>[/cyan] Energy Availability (RED-S screening)\n"
+            "  [cyan]/weightplan <now_kg> <goal_kg> <bf%> [goal][/cyan] Safe weight change rate\n"
+            "  [cyan]/skinfold <sex> <age> <s1> <s2> <s3>[/cyan] Body fat from skinfolds\n\n"
+            "[bold dim cyan]Training Zones:[/bold dim cyan]\n"
+            "  [cyan]/hrzones <hr_rest> <hr_max>[/cyan]  Heart rate zones (Karvonen)\n"
+            "  [cyan]/powerzones <ftp_watts>[/cyan]     Power zones (Coggan/Allen FTP)\n"
+            "  [cyan]/pacezones <vdot>[/cyan]           Running pace zones (Daniels' VDOT)\n"
+            "  [cyan]/vo2max <distance_m>[/cyan]        VO2max from Cooper 12-min test\n"
+            "  [cyan]/hrmax <age> [method][/cyan]       Predict max heart rate\n"
+            "  [cyan]/distribution [sport] [level] [phase][/cyan] Training intensity distribution\n\n"
             "[bold dim cyan]Sports Intelligence:[/bold dim cyan]\n"
             "  [cyan]/assess [notes][/cyan]            Full AI sports readiness assessment (uses profile + HRV data)\n\n"
             "[bold dim cyan]Session:[/bold dim cyan]\n"
@@ -1262,6 +1291,178 @@ class Kiwi:
                         box=box.ROUNDED,
                         padding=(0, 2),
                     ))
+
+                # ── Supplements ────────────────────────────────────────────
+
+                elif q_lower.startswith("/supplist"):
+                    cat = query[9:].strip() or None
+                    output = list_supplements_by_category(cat)
+                    console.print(Panel(output, title="[cyan]Supplement Database[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+
+                elif q_lower.startswith("/supp "):
+                    name = query[6:].strip()
+                    proto = resolve_supplement(name)
+                    if proto:
+                        sport = self.profile.data.get("sport", "general")
+                        output = format_dosing_protocol(proto, sport)
+                        console.print(Panel(output, title=f"[cyan]{proto.name}[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        console.print(f"[yellow]  Supplement '{name}' not found. Try /supplist to see all options.[/yellow]")
+
+                # ── Body Composition ──────────────────────────────────────────
+
+                elif q_lower.startswith("/skinfold "):
+                    parts = query[10:].strip().split()
+                    if len(parts) >= 5:
+                        sex, age_s = parts[0], parts[1]
+                        s1, s2, s3 = float(parts[2]), float(parts[3]), float(parts[4])
+                        age = int(age_s)
+                        if sex.lower() == "male":
+                            bf = estimate_body_fat_jackson_pollock_3(sex, age, skinfold_chest_mm=s1, skinfold_abdomen_mm=s2, skinfold_thigh_mm=s3)
+                        else:
+                            bf = estimate_body_fat_jackson_pollock_3(sex, age, skinfold_tricep_mm=s1, skinfold_suprailiac_mm=s2, skinfold_thigh_mm=s3)
+                        console.print(Panel(f"Estimated Body Fat: {bf:.1f}% (Jackson-Pollock 3-site)", title="[cyan]Skinfold Estimation[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        console.print("[dim]  Usage: /skinfold <sex> <age> <site1_mm> <site2_mm> <site3_mm>[/dim]")
+                        console.print("[dim]  Males: chest, abdomen, thigh | Females: tricep, suprailiac, thigh[/dim]")
+
+                elif q_lower.startswith("/bodyfat "):
+                    parts = query[9:].strip().split()
+                    if len(parts) >= 2:
+                        wt, bf_pct = float(parts[0]), float(parts[1])
+                        sport = parts[2] if len(parts) > 2 else self.profile.data.get("sport", "general_fitness")
+                        sex = self.profile.data.get("sex", "male")
+                        ht = self.profile.data.get("height_cm", 175)
+                        result = analyze_body_composition(wt, bf_pct, sex, ht, sport)
+                        ffmi = calculate_ffmi(wt, bf_pct, ht)
+                        report = format_composition_report(result, ffmi=ffmi)
+                        console.print(Panel(report, title="[cyan]Body Composition Analysis[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        console.print("[dim]  Usage: /bodyfat <weight_kg> <body_fat_%> [sport][/dim]")
+
+                elif q_lower.startswith("/ffmi "):
+                    parts = query[5:].strip().split()
+                    if len(parts) >= 3:
+                        wt, bf_pct, ht = float(parts[0]), float(parts[1]), float(parts[2])
+                        result = calculate_ffmi(wt, bf_pct, ht)
+                        lines = [
+                            f"FFMI: {result.ffmi:.1f} kg/m²",
+                            f"Adjusted FFMI: {result.adjusted_ffmi:.1f} kg/m² (normalized to 1.80m)",
+                            f"Interpretation: {result.interpretation}",
+                            f"{result.natural_limit_note}",
+                            f"Evidence: {result.evidence}",
+                        ]
+                        console.print(Panel("\n".join(lines), title="[cyan]Fat-Free Mass Index[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        console.print("[dim]  Usage: /ffmi <weight_kg> <body_fat_%> <height_cm>[/dim]")
+
+                elif q_lower.startswith("/ea "):
+                    parts = query[4:].strip().split()
+                    if len(parts) >= 3:
+                        intake, exercise, lm = float(parts[0]), float(parts[1]), float(parts[2])
+                        ea = calculate_energy_availability(intake, exercise, lm)
+                        lines = [
+                            f"Energy Availability: {ea.ea_kcal_per_kg_ffm:.1f} kcal/kg FFM/day",
+                            f"Status: {ea.status.upper()}",
+                            f"Risk Level: {ea.risk_level.upper()}",
+                        ]
+                        if ea.consequences:
+                            lines.append("\nConsequences:")
+                            for c in ea.consequences:
+                                lines.append(f"  • {c}")
+                        if ea.recommendations:
+                            lines.append("\nRecommendations:")
+                            for r in ea.recommendations:
+                                lines.append(f"  • {r}")
+                        console.print(Panel("\n".join(lines), title="[cyan]Energy Availability (RED-S Screening)[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        console.print("[dim]  Usage: /ea <energy_intake_kcal> <exercise_expenditure_kcal> <lean_mass_kg>[/dim]")
+
+                elif q_lower.startswith("/weightplan "):
+                    parts = query[12:].strip().split()
+                    if len(parts) >= 3:
+                        now_kg, goal_kg, bf = float(parts[0]), float(parts[1]), float(parts[2])
+                        goal = parts[3] if len(parts) > 3 else "fat_loss"
+                        sex = self.profile.data.get("sex", "male")
+                        wc = safe_weight_change_rate(now_kg, goal_kg, bf, sex, goal)
+                        lines = [
+                            f"Direction: {wc.direction.title()}",
+                            f"Rate: {wc.rate_kg_per_week:.2f} kg/week ({wc.rate_pct_bw_per_week}% BW/week)",
+                            f"Safe: {'Yes' if wc.safe else 'AGGRESSIVE — consider slowing'}",
+                            "",
+                        ]
+                        for note in wc.lean_mass_preservation_notes:
+                            lines.append(f"  • {note}")
+                        lines.append(f"\nEvidence: {wc.evidence}")
+                        console.print(Panel("\n".join(lines), title="[cyan]Weight Change Plan[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        console.print("[dim]  Usage: /weightplan <current_kg> <target_kg> <body_fat_%> [goal: fat_loss/muscle_gain/contest_prep][/dim]")
+
+                # ── Training Zones ────────────────────────────────────────────
+
+                elif q_lower.startswith("/hrzones "):
+                    parts = query[9:].strip().split()
+                    if len(parts) >= 2:
+                        hr_rest, hr_max = int(parts[0]), int(parts[1])
+                        zones = calculate_hr_zones_karvonen(hr_rest, hr_max)
+                        output = format_hr_zones(zones)
+                        console.print(Panel(output, title=f"[cyan]HR Zones[/cyan]  [dim]HRrest={hr_rest} HRmax={hr_max}[/dim]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        console.print("[dim]  Usage: /hrzones <resting_hr> <max_hr>[/dim]")
+
+                elif q_lower.startswith("/powerzones "):
+                    parts = query[12:].strip().split()
+                    if len(parts) >= 1:
+                        ftp = int(parts[0])
+                        zones = calculate_power_zones(ftp)
+                        output = format_power_zones(zones)
+                        console.print(Panel(output, title=f"[cyan]Power Zones[/cyan]  [dim]FTP={ftp}W[/dim]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        console.print("[dim]  Usage: /powerzones <ftp_watts>[/dim]")
+
+                elif q_lower.startswith("/pacezones "):
+                    parts = query[11:].strip().split()
+                    if len(parts) >= 1:
+                        vdot = float(parts[0])
+                        zones = calculate_pace_zones(vdot)
+                        output = format_pace_zones(zones)
+                        console.print(Panel(output, title=f"[cyan]Pace Zones[/cyan]  [dim]VDOT={vdot}[/dim]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        console.print("[dim]  Usage: /pacezones <vdot>[/dim]")
+
+                elif q_lower.startswith("/vo2max "):
+                    parts = query[8:].strip().split()
+                    if len(parts) >= 1:
+                        dist = float(parts[0])
+                        result = estimate_vo2max_cooper(dist)
+                        lines = [
+                            f"VO2max: {result.vo2max:.1f} mL/kg/min",
+                            f"Category: {result.fitness_category.title()}",
+                            f"Method: {result.method}",
+                            f"Evidence: {result.evidence}",
+                        ]
+                        console.print(Panel("\n".join(lines), title=f"[cyan]VO2max Estimate[/cyan]  [dim]{dist:.0f}m in 12 min[/dim]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        console.print("[dim]  Usage: /vo2max <distance_meters_in_12min>[/dim]")
+
+                elif q_lower.startswith("/hrmax "):
+                    parts = query[7:].strip().split()
+                    if len(parts) >= 1:
+                        age = int(parts[0])
+                        method = parts[1] if len(parts) > 1 else "tanaka"
+                        hr = predict_hr_max(age, method)
+                        console.print(Panel(f"Predicted HRmax: {hr} bpm  (method: {method}, age: {age})", title="[cyan]HRmax Prediction[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        console.print("[dim]  Usage: /hrmax <age> [method: tanaka/fox/gulati][/dim]")
+
+                elif q_lower.startswith("/distribution"):
+                    parts = query[13:].strip().split()
+                    sport = parts[0] if len(parts) > 0 else self.profile.data.get("sport", "endurance")
+                    level = parts[1] if len(parts) > 1 else "intermediate"
+                    phase = parts[2] if len(parts) > 2 else "base"
+                    dist = recommend_intensity_distribution(sport, level, phase)
+                    output = format_intensity_distribution(dist)
+                    console.print(Panel(output, title=f"[cyan]Intensity Distribution[/cyan]  [dim]{sport}/{level}/{phase}[/dim]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
 
                 # ── Sports Intelligence Assessment ──────────────────────────
 
