@@ -9,8 +9,9 @@ Evidence-based body composition tracking and interpretation:
 - Rate of weight change safety limits
 
 References:
-- Jackson & Pollock (1978) Br J Nutr — Skinfold body fat equations
-- Schutz et al. (2002) Int J Obesity — FFMI normative data
+- Jackson & Pollock (1978) Br J Nutr — Male 3-site skinfold equation
+- Jackson, Pollock & Ward (1980) Med Sci Sports Exerc — Female 3-site skinfold equation
+- Kouri et al. (1995) Clin J Sport Med — FFMI natural limits
 - Mountjoy et al. (2018) Br J Sports Med — IOC RED-S consensus 2018
 - Sundgot-Borgen et al. (2013) Br J Sports Med — Body composition in sport
 """
@@ -195,7 +196,7 @@ def calculate_ffmi(
     - Average male: 18–20
     - Athletic male: 20–22
     - Highly muscular: 22–25
-    - Natural ceiling: ~25 (Schutz et al.)
+    - Natural ceiling: ~25 (Kouri et al. 1995)
     - Suspicious of PED use: >25
 
     Args:
@@ -248,13 +249,11 @@ class EnergyAvailability:
     evidence: str = "🟢 Strong — Mountjoy et al. 2018 IOC RED-S consensus"
 
 
-# EA thresholds (Loucks et al. 2011; Mountjoy et al. 2018)
-EA_THRESHOLDS = {
-    "optimal":  (45, 999),   # ≥45 kcal/kg FFM/d
-    "reduced":  (30, 45),    # 30–45: subclinical effects begin
-    "low":      (20, 30),    # <30: clinical threshold — menstrual/hormonal disruption
-    "clinical": (0, 20),     # <20: severe — bone loss, immune suppression, cardiovascular risk
-}
+# EA thresholds (Loucks & Thuma 2003 J Appl Physiol; Mountjoy et al. 2018):
+#   ≥45 kcal/kg FFM/d: optimal
+#   30–45: reduced (subclinical effects begin)
+#   <30: low (clinical threshold — menstrual/hormonal disruption)
+#   <20: severe (bone loss, immune suppression, cardiovascular risk)
 
 
 def calculate_energy_availability(
@@ -267,7 +266,7 @@ def calculate_energy_availability(
 
     EA = (Energy Intake - Exercise Energy Expenditure) / Fat-Free Mass (kg)
 
-    Thresholds (Loucks et al. 2011):
+    Thresholds (Loucks & Thuma 2003):
     - ≥45 kcal/kg FFM/d: Optimal
     - 30–45: Reduced (subclinical effects)
     - <30: Low (clinical threshold — menstrual, bone, hormonal disruption)
@@ -372,7 +371,7 @@ def safe_weight_change_rate(
 
     if goal == "fat_loss" or (direction == "loss" and goal != "contest_prep"):
         # Slower for leaner individuals
-        if body_fat_pct < 12 and sex == "male" or body_fat_pct < 20 and sex == "female":
+        if (body_fat_pct < 12 and sex == "male") or (body_fat_pct < 20 and sex == "female"):
             rate_pct = 0.5  # Already lean — slow rate
             notes.append("Already lean: use slower rate (0.5% BW/week) to minimize lean mass loss.")
         else:

@@ -55,7 +55,7 @@ SUPPLEMENT_DB: dict[str, DosingProtocol] = {
         duration="Chronic — no need to cycle; safe for long-term use",
         best_forms=["Creatine monohydrate (gold standard)", "Creapure", "Micronized monohydrate"],
         absorption_enhancers=["Carbohydrate co-ingestion (50–100g)", "Protein co-ingestion"],
-        absorption_inhibitors=["Caffeine may partially attenuate (debated)", "Excessive fiber"],
+        absorption_inhibitors=["Excessive fiber"],
         food_interaction="Take with meal or carb-containing shake",
         onset_time="Loading: 5–7 days to full saturation; No-load: 28 days",
         washout="Stores deplete over 4–6 weeks after cessation",
@@ -69,11 +69,12 @@ SUPPLEMENT_DB: dict[str, DosingProtocol] = {
         },
         evidence="🟢 Strong — Most studied supplement in sports nutrition",
         mechanism="Increases phosphocreatine stores → faster ATP resynthesis during high-intensity efforts; "
-                  "also acts as intracellular osmolyte (cell volumization) and may upregulate mTOR/IGF-1 signaling",
+                  "also acts as intracellular osmolyte (cell volumization) and may upregulate mTOR/IGF-1 signaling. "
+                  "Note: Caffeine may attenuate ergogenic effect at the functional level (debated; Vandenberghe 1996 vs Hespel 2002)",
         key_references=[
             "Kreider et al. (2017) JISSN — ISSN position stand on creatine",
             "Buford et al. (2007) JISSN — Creatine supplementation and exercise",
-            "Hall & Trojian (2013) J Fam Pract — Creatine renal safety review",
+            "Hall & Trojian (2013) Phys Sportsmed — Creatine renal safety review",
         ],
     ),
 
@@ -337,7 +338,7 @@ SUPPLEMENT_DB: dict[str, DosingProtocol] = {
     "iron": DosingProtocol(
         name="Iron",
         category="health",
-        loading_dose="100–200mg elemental iron daily for 8–12 weeks if deficient (ferritin <30 ng/mL)",
+        loading_dose="100–200mg elemental iron daily for 8–12 weeks if deficient (ferritin <30 ng/mL; under clinical supervision — exceeds IOM UL)",
         maintenance_dose="18–30mg elemental iron daily for at-risk athletes (female, endurance)",
         timing="Morning on empty stomach; alternate-day dosing may improve absorption (hepcidin cycling)",
         duration="Chronic for at-risk populations; repletion: 8–12 weeks; recheck ferritin at 3 months",
@@ -364,7 +365,7 @@ SUPPLEMENT_DB: dict[str, DosingProtocol] = {
                   "Deficiency impairs VO2max, lactate threshold, and endurance capacity",
         key_references=[
             "Peeling et al. (2007) IJSNEM — Iron and the endurance athlete",
-            "DellaValle et al. (2014) Med Sci Sports Exerc — Iron depletion and performance",
+            "DellaValle (2011) Med Sci Sports Exerc — Iron depletion in female athletes",
         ],
     ),
 }

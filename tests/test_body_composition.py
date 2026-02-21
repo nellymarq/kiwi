@@ -14,7 +14,7 @@ Covers:
 import pytest
 from tools.body_composition import (
     BF_CATEGORIES_MALE, BF_CATEGORIES_FEMALE,
-    SPORT_BF_TARGETS, EA_THRESHOLDS,
+    SPORT_BF_TARGETS,
     BodyFatResult, FFMIResult, EnergyAvailability, WeightChangeGuidance,
     classify_body_fat, estimate_body_fat_jackson_pollock_3,
     analyze_body_composition, calculate_ffmi,

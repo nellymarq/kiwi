@@ -337,8 +337,8 @@ def calculate_pace_zones(vdot: float) -> list[PaceZone]:
     - Interval: VDOT pace × 0.92–0.97
     - Repetition: VDOT pace × 0.85–0.90
 
-    Approximate VDOT pace (min/km) = 29.54 / VDOT + 1.30
-    (Regression fit to Daniels' VDOT tables for 5K–marathon range)
+    Approximate VDOT pace (min/km) = 133.0 / VDOT + 1.32
+    (Regression approximation of Daniels' VDOT tables; ±10-15 sec/km at extremes)
 
     Args:
         vdot: VDOT score (typically 30–85 for recreational to elite).
@@ -347,9 +347,10 @@ def calculate_pace_zones(vdot: float) -> list[PaceZone]:
         List of PaceZone objects.
     """
     # Base pace at threshold ~= reference pace derived from VDOT
-    # Calibrated against Daniels' VDOT tables (key calibration points):
-    #   VDOT 30 → ~5:55 min/km, VDOT 40 → ~4:45, VDOT 50 → ~3:58,
-    #   VDOT 60 → ~3:25, VDOT 70 → ~3:02, VDOT 80 → ~2:44
+    # Regression approximation of Daniels' VDOT tables (formula outputs):
+    #   VDOT 30 → ~5:45, VDOT 40 → ~4:39, VDOT 50 → ~3:58,
+    #   VDOT 60 → ~3:32, VDOT 70 → ~3:14, VDOT 80 → ~2:59
+    # Note: Approximation; accuracy ±10-15 sec/km vs published tables at extremes
     base_pace = 133.0 / max(vdot, 20) + 1.32  # min/km at threshold
 
     def fmt_pace(p: float) -> float:
