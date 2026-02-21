@@ -19,7 +19,9 @@ Claude Opus 4.6 with adaptive thinking for evidence synthesis.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, Optional
+
+import anthropic
 
 # ── Interaction severity ───────────────────────────────────────────────────────
 
@@ -274,3 +276,92 @@ def format_interaction_report(
             lines.append(ix.display())
 
     return "\n".join(lines)
+
+
+# ── Claude Fallback for Novel Compounds ──────────────────────────────────────
+
+NOVEL_COMPOUND_SYSTEM = """\
+You are a pharmacology and sports nutrition specialist. When given compounds \
+that are not in the local interaction database, analyze potential interactions \
+using your knowledge of:
+- Pharmacokinetics (absorption, metabolism, CYP enzyme interactions)
+- Pharmacodynamics (receptor competition, synergistic/antagonistic effects)
+- Clinical evidence and case reports
+- Theoretical mechanistic concerns
+
+For each interaction found, provide:
+1. Severity: synergistic / safe / monitor / caution / avoid
+2. Evidence tier: 🟢 Strong | 🟡 Moderate | 🟠 Weak | 🔵 Emerging
+3. Mechanism of interaction
+4. Practical recommendation
+
+Be specific and evidence-grounded. If evidence is limited, say so explicitly. \
+Never fabricate references — cite only well-known landmark studies or state \
+"mechanistic basis only" when appropriate.\
+"""
+
+
+async def analyze_novel_interactions(
+    client: anthropic.AsyncAnthropic,
+    compounds: list[str],
+    on_text=None,
+) -> str:
+    """
+    Use Claude to analyze interactions for compounds not in the local DB.
+
+    Falls back to Claude Opus 4.6 with adaptive thinking when the local
+    interaction database has no data for one or more compounds.
+
+    Args:
+        client: AsyncAnthropic client.
+        compounds: List of compound names to check.
+        on_text: Optional streaming callback.
+
+    Returns:
+        Analysis text from Claude.
+    """
+    prompt = (
+        f"Analyze potential interactions between these compounds:\n"
+        f"{', '.join(c.title() for c in compounds)}\n\n"
+        f"For each pair with a meaningful interaction, provide severity, "
+        f"evidence tier, mechanism, and recommendation. If a compound is "
+        f"obscure, note limited evidence availability."
+    )
+
+    messages = [{"role": "user", "content": prompt}]
+
+    if on_text:
+        accumulated = ""
+        async with client.messages.stream(
+            model="claude-opus-4-6",
+            max_tokens=4096,
+            thinking={"type": "adaptive"},
+            system=NOVEL_COMPOUND_SYSTEM,
+            messages=messages,
+        ) as stream:
+            async for text in stream.text_stream:
+                on_text(text)
+                accumulated += text
+        return accumulated
+    else:
+        response = await client.messages.create(
+            model="claude-opus-4-6",
+            max_tokens=4096,
+            thinking={"type": "adaptive"},
+            system=NOVEL_COMPOUND_SYSTEM,
+            messages=messages,
+        )
+        return next(b.text for b in response.content if b.type == "text")
+
+
+def has_novel_compounds(compounds: list[str]) -> list[str]:
+    """
+    Check which compounds are NOT in the local interaction database.
+
+    Returns list of compound names not found in the index.
+    """
+    novel = []
+    for comp in compounds:
+        if comp.lower().strip() not in _INDEX:
+            novel.append(comp)
+    return novel

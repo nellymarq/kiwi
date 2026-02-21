@@ -30,7 +30,7 @@ def test_all_module_imports():
     from tools.pubmed import PubMedClient, Article
     from tools.calculations import SportsCalc, AthleteMetrics, ACTIVITY_FACTORS
     from tools.exporter import ResearchExporter
-    from tools.interactions import INTERACTION_DB, lookup_interactions, format_interaction_report
+    from tools.interactions import INTERACTION_DB, lookup_interactions, format_interaction_report, has_novel_compounds, analyze_novel_interactions
     from tools.food_database import FDCClient, FoodNutrients, NUTRIENT_IDS
     from tools.periodization import TrainingLoadCalculator, get_block_plan, prilepins_recommendation
     from tools.biomarkers import BiomarkerInterpreter, BIOMARKER_DB, interpret_panel

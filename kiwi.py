@@ -44,7 +44,7 @@ from agents.base import REFINEMENT_THRESHOLD
 from tools.pubmed import PubMedClient
 from tools.calculations import SportsCalc
 from tools.exporter import ResearchExporter
-from tools.interactions import lookup_interactions, lookup_single, format_interaction_report
+from tools.interactions import lookup_interactions, lookup_single, format_interaction_report, has_novel_compounds, analyze_novel_interactions
 from tools.food_database import FDCClient
 from tools.periodization import (
     TrainingSession, TrainingLoadCalculator,
@@ -663,6 +663,19 @@ class Kiwi:
                             box=box.ROUNDED,
                             padding=(0, 2),
                         ))
+
+                        # Claude fallback for novel compounds not in local DB
+                        novel = has_novel_compounds(compounds)
+                        if novel:
+                            console.print(f"\n[dim cyan]  Novel compounds detected: {', '.join(novel)}[/dim cyan]")
+                            console.print("[dim cyan]  Running Claude analysis for comprehensive interaction check...[/dim cyan]\n")
+
+                            def on_check_text(text: str):
+                                console.print(text, end="", markup=False)
+
+                            analysis = await analyze_novel_interactions(self.client, compounds, on_text=on_check_text)
+                            console.print("\n")
+                            console.rule("[dim]Claude Interaction Analysis Complete[/dim]")
                     else:
                         console.print("[dim]  Usage: /check caffeine creatine melatonin[/dim]")
 
@@ -680,8 +693,15 @@ class Kiwi:
                                 padding=(0, 2),
                             ))
                         else:
-                            console.print(f"[dim]  No known interactions for '{compound}' in database.[/dim]")
-                            console.print("[dim]  Try researching it: just type your question.[/dim]")
+                            console.print(f"[dim]  No known interactions for '{compound}' in local database.[/dim]")
+                            console.print("[dim cyan]  Running Claude analysis...[/dim cyan]\n")
+
+                            def on_interact_text(text: str):
+                                console.print(text, end="", markup=False)
+
+                            analysis = await analyze_novel_interactions(self.client, [compound], on_text=on_interact_text)
+                            console.print("\n")
+                            console.rule("[dim]Claude Interaction Analysis Complete[/dim]")
                     else:
                         console.print("[dim]  Usage: /interact caffeine[/dim]")
 
