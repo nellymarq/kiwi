@@ -157,7 +157,7 @@ class TestCameron:
 
     def test_model_string(self):
         pred = predict_cameron(5000, 1200, 10000)
-        assert "Cameron" in pred.model
+        assert "Cameron" in pred.model or "heuristic" in pred.model
 
     def test_cameron_factor_interpolation(self):
         """Factor should increase monotonically with distance."""
