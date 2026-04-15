@@ -42,6 +42,7 @@ from rich import box
 from agents.orchestrator import KiwiOrchestrator
 from agents.base import REFINEMENT_THRESHOLD
 from tools.pubmed import PubMedClient
+from tools.openalex import OpenAlexClient, SPORTS_NUTRITION_JOURNALS
 from tools.calculations import SportsCalc
 from tools.exporter import ResearchExporter
 from tools.interactions import lookup_interactions, lookup_single, format_interaction_report, has_novel_compounds, analyze_novel_interactions
@@ -198,23 +199,49 @@ def display_rwl_checkpoint(critique_data: dict, score: float, refined: bool = Fa
 # ── PubMed Pre-fetch ──────────────────────────────────────────────────────────
 
 DEFAULT_PUBMED_MAX_RESULTS = 6
-DEFAULT_PUBMED_YEARS_BACK = 8
+DEFAULT_OPENALEX_MAX_RESULTS = 4
+DEFAULT_YEARS_BACK = 8
 
 
-def fetch_pubmed_context(query: str, pubmed: PubMedClient,
-                         max_results: int = DEFAULT_PUBMED_MAX_RESULTS,
-                         years_back: int = DEFAULT_PUBMED_YEARS_BACK) -> str:
-    """Run a quick PubMed search and return formatted context block."""
-    with console.status("[dim cyan]  Searching PubMed for recent literature...[/dim cyan]", spinner="earth"):
-        keywords = " ".join(query.split()[:6])
-        articles = pubmed.search_and_fetch(keywords, max_results=max_results, years_back=years_back)
+def fetch_literature_context(
+    query: str,
+    pubmed: PubMedClient | None,
+    openalex: OpenAlexClient | None,
+    max_pubmed: int = DEFAULT_PUBMED_MAX_RESULTS,
+    max_openalex: int = DEFAULT_OPENALEX_MAX_RESULTS,
+    years_back: int = DEFAULT_YEARS_BACK,
+) -> str:
+    """Search PubMed + OpenAlex and return merged, deduplicated context block."""
+    keywords = " ".join(query.split()[:6])
+    blocks = []
+    seen_dois: set[str] = set()
 
-    if articles:
-        console.print(f"[dim]  PubMed: found {len(articles)} relevant articles[/dim]")
-        return pubmed.build_context_block(articles)
-    else:
-        console.print("[dim]  PubMed: no recent articles found for this query[/dim]")
+    # PubMed search
+    if pubmed:
+        with console.status("[dim cyan]  Searching PubMed...[/dim cyan]", spinner="earth"):
+            articles = pubmed.search_and_fetch(keywords, max_results=max_pubmed, years_back=years_back)
+        if articles:
+            for a in articles:
+                if a.doi:
+                    seen_dois.add(a.doi.lower())
+            console.print(f"[dim]  PubMed: {len(articles)} articles[/dim]")
+            blocks.append(pubmed.build_context_block(articles))
+
+    # OpenAlex search (sports nutrition journals)
+    if openalex:
+        with console.status("[dim cyan]  Searching OpenAlex (sports nutrition journals)...[/dim cyan]", spinner="earth"):
+            works = openalex.search_sports_nutrition(keywords, max_results=max_openalex + 2, years_back=years_back)
+        # Deduplicate against PubMed by DOI
+        unique_works = [w for w in works if not w.doi or w.doi.lower() not in seen_dois][:max_openalex]
+        if unique_works:
+            console.print(f"[dim]  OpenAlex: {len(unique_works)} additional articles (JISSN, BJSM, Nutrients, etc.)[/dim]")
+            blocks.append(openalex.build_context_block(unique_works))
+
+    if not blocks:
+        console.print("[dim]  No recent literature found for this query[/dim]")
         return ""
+
+    return "\n\n".join(blocks)
 
 
 # ── Main Kiwi Class ───────────────────────────────────────────────────────────
@@ -231,6 +258,7 @@ class Kiwi:
         self.memory = KiwiMemory()
         self.profile = UserProfile()
         self.pubmed = PubMedClient() if use_pubmed else None
+        self.openalex = OpenAlexClient() if use_pubmed else None
         self.exporter = ResearchExporter()
         self.calc = SportsCalc()
         self.fdc = FDCClient()
@@ -255,10 +283,10 @@ class Kiwi:
             padding=(0, 2),
         ))
 
-        # PubMed pre-fetch
+        # Literature pre-fetch (PubMed + OpenAlex)
         pubmed_context = ""
-        if self.pubmed:
-            pubmed_context = fetch_pubmed_context(query, self.pubmed)
+        if self.pubmed or self.openalex:
+            pubmed_context = fetch_literature_context(query, self.pubmed, self.openalex)
 
         # Profile + memory context
         profile_summary = self.profile.to_summary()
@@ -527,7 +555,7 @@ class Kiwi:
                 if q_lower in ("/help", "/commands"):
                     help_text = (
                         "[bold]Research:[/bold]  Just type a question · /protocol <query> · /plan <query>\n"
-                        "[bold]PubMed:[/bold]   /pubmed <query>\n"
+                        "[bold]PubMed:[/bold]   /pubmed <query> · /openalex <query>\n"
                         "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords>\n"
                         "[bold]Threads:[/bold]  /thread new|use|list <name>\n"
                         "[bold]Profile:[/bold]  /profile · /profile set <field> <value>\n"
@@ -713,6 +741,25 @@ class Kiwi:
                             console.print("[dim]  No results found.[/dim]")
                     elif not self.pubmed:
                         console.print("[dim]  PubMed disabled (run without --no-pubmed).[/dim]")
+
+                elif q_lower.startswith("/openalex "):
+                    search_query = query[10:].strip()
+                    if search_query and self.openalex:
+                        with console.status("[dim cyan]  Searching OpenAlex (sports nutrition journals)...[/dim cyan]", spinner="earth"):
+                            works = self.openalex.search_sports_nutrition(search_query, max_results=8)
+                        if works:
+                            for i, w in enumerate(works, 1):
+                                oa_tag = " [OA]" if w.open_access else ""
+                                console.print(
+                                    f"\n[cyan][{i}][/cyan] [bold]{w.title}[/bold]\n"
+                                    f"[dim]{', '.join(w.authors[:2])} ({w.year}) · {w.journal}{oa_tag}[/dim]\n"
+                                    f"DOI: {w.doi}  Cited: {w.cited_by_count}\n"
+                                    f"{w.abstract[:400]}..."
+                                )
+                        else:
+                            console.print("[dim]  No results found.[/dim]")
+                    elif not self.openalex:
+                        console.print("[dim]  OpenAlex disabled (run without --no-pubmed).[/dim]")
 
                 # ── Supplement Interaction Checker ──────────────────────────
 
