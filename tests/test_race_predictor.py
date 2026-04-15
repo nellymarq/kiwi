@@ -58,6 +58,21 @@ class TestTimeParsing:
     def test_parse_marathon_time(self):
         assert parse_time_seconds("3:30:00") == 12600
 
+    def test_parse_empty_string(self):
+        assert parse_time_seconds("") is None
+
+    def test_parse_invalid_string(self):
+        assert parse_time_seconds("abc") is None
+
+    def test_parse_negative_number(self):
+        assert parse_time_seconds(-100) is None
+
+    def test_parse_zero(self):
+        assert parse_time_seconds(0) is None
+
+    def test_parse_negative_string(self):
+        assert parse_time_seconds("-5:00") is None
+
     def test_format_time_hours(self):
         assert format_time(5400) == "1:30:00"
 

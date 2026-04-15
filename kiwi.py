@@ -522,9 +522,42 @@ class Kiwi:
 
                 q_lower = query.lower()
 
+                # ── Help Command ────────────────────────────────────────────
+
+                if q_lower in ("/help", "/commands"):
+                    help_text = (
+                        "[bold]Research:[/bold]  Just type a question · /protocol <query> · /plan <query>\n"
+                        "[bold]PubMed:[/bold]   /pubmed <query>\n"
+                        "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords>\n"
+                        "[bold]Threads:[/bold]  /thread new|use|list <name>\n"
+                        "[bold]Profile:[/bold]  /profile · /profile set <field> <value>\n"
+                        "[bold]Calc:[/bold]     /calc\n"
+                        "[bold]Supps:[/bold]    /supp <name> · /supplist [cat] · /check <c1> [c2..] · /interact <c>\n"
+                        "[bold]Food:[/bold]     /food <name> [g] · /food+ <name> [g] · /compare <f1>, <f2>\n"
+                        "[bold]Training:[/bold] /session <day> <min> <rpe> · /load · /blocks [sport] · /prilepin <%>\n"
+                        "[bold]Zones:[/bold]    /hrzones <rest> <max> · /powerzones <ftp> · /pacezones <vdot> · /vo2max <m> · /hrmax <age> · /distribution\n"
+                        "[bold]Labs:[/bold]     /labs <marker val...> · /biomarker <name> <val>\n"
+                        "[bold]Sleep:[/bold]    /sleep <HH:MM> · /chronotype [meq] · /caffeine <mg> <hrs> · /sleepdebt <h1 h2..> · /hormones · /bedtime [sport]\n"
+                        "[bold]Recovery:[/bold] /readiness <r1 r2..> · /doms <type> <rpe> <min> · /supercomp <type> <h> · /deload · /recover · /mps <kg>\n"
+                        "[bold]Hydrate:[/bold]  /sweat <pre> <post> [L] [hrs] · /sweatest <sport> <hrs> · /rehydrate · /urine <1-8> · /hyponatremia · /prehydrate\n"
+                        "[bold]Body:[/bold]     /bodyfat <kg> <bf%> · /ffmi <kg> <bf%> <cm> · /ea <in> <ex> <lm> · /weightplan · /skinfold\n"
+                        "[bold]Injury:[/bold]   /acwr · /fms · /overuse · /return · /prevent [type]\n"
+                        "[bold]Female:[/bold]   /cycle [phase] · /reds · /iron · /postpartum\n"
+                        "[bold]Environ:[/bold]  /altitude · /heat · /cold · /airquality · /jetlag\n"
+                        "[bold]Mental:[/bold]   /anxiety · /burnout · /visualize [type]\n"
+                        "[bold]Sports:[/bold]   /assess [notes]\n"
+                        "[bold]Session:[/bold]  /clear · /new · /quit"
+                    )
+                    console.print(Panel(
+                        help_text,
+                        title="[cyan]Kiwi Commands[/cyan]",
+                        border_style="cyan",
+                        box=box.SIMPLE,
+                    ))
+
                 # ── Session Commands ────────────────────────────────────────
 
-                if q_lower in ("/quit", "/exit", "quit", "exit"):
+                elif q_lower in ("/quit", "/exit", "quit", "exit"):
                     console.print(
                         f"\n[dim]  Session #{session_num} complete. "
                         f"Memory saved to {Path.home() / '.kiwi'}[/dim]"
@@ -748,8 +781,11 @@ class Kiwi:
                     include_aminos = q_lower.startswith("/food+ ")
                     prefix_len = 7 if include_aminos else 6
                     args = query[prefix_len:].strip().split()
-                    food_name = " ".join(args[:-1]) if args and args[-1].lstrip("-").isdigit() else " ".join(args)
-                    grams = float(args[-1]) if args and args[-1].lstrip("-").isdigit() else 100.0
+                    food_name = " ".join(args[:-1]) if args and args[-1].lstrip("-").replace(".", "", 1).isdigit() else " ".join(args)
+                    grams = float(args[-1]) if args and args[-1].lstrip("-").replace(".", "", 1).isdigit() else 100.0
+                    if grams <= 0:
+                        console.print("[dim red]  Serving size must be positive.[/dim red]")
+                        continue
 
                     if food_name:
                         with console.status(
@@ -803,6 +839,9 @@ class Kiwi:
                             day = int(parts[1])
                             duration = float(parts[2])
                             rpe = float(parts[3])
+                            if duration <= 0 or not (1 <= rpe <= 10):
+                                console.print("[dim red]  Duration must be positive, RPE must be 1–10.[/dim red]")
+                                continue
                             sport = " ".join(parts[4:]) if len(parts) > 4 else ""
                             s = TrainingSession(date_offset=day, duration_min=duration, rpe=rpe, sport=sport)
                             self._pending_sessions.append(s)
@@ -860,6 +899,9 @@ class Kiwi:
                 elif q_lower.startswith("/prilepin "):
                     try:
                         pct = float(query.split()[1])
+                        if not (50 <= pct <= 110):
+                            console.print("[dim red]  Intensity must be 50–110% of 1RM.[/dim red]")
+                            continue
                         result = prilepins_recommendation(pct)
                         console.print(Panel(
                             result["note"] + "\n\n"
@@ -978,6 +1020,9 @@ class Kiwi:
                         try:
                             dose = float(parts[1])
                             hours = float(parts[2])
+                            if dose <= 0 or hours < 0:
+                                console.print("[dim red]  Dose must be positive, hours must be non-negative.[/dim red]")
+                                continue
                             fast = len(parts) < 4 or parts[3].lower() != "slow"
                             status = caffeine_clearance(dose, hours, fast_metabolizer=fast)
                             console.print(Panel(

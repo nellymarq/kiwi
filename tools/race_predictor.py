@@ -45,22 +45,33 @@ RACE_DISTANCES_M: dict[str, float] = {
 }
 
 
-def parse_time_seconds(time_str: str) -> float:
+def parse_time_seconds(time_str: str) -> float | None:
     """
     Parse a time string to seconds.
 
     Accepts formats: "HH:MM:SS", "MM:SS", "SS", or plain seconds as float.
+    Returns None if the input cannot be parsed.
     """
     if isinstance(time_str, (int, float)):
-        return float(time_str)
+        return float(time_str) if time_str > 0 else None
 
-    parts = str(time_str).strip().split(":")
-    if len(parts) == 3:
-        return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
-    elif len(parts) == 2:
-        return int(parts[0]) * 60 + float(parts[1])
-    else:
-        return float(parts[0])
+    raw = str(time_str).strip()
+    if not raw:
+        return None
+
+    try:
+        parts = raw.split(":")
+        if len(parts) == 3:
+            result = int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+        elif len(parts) == 2:
+            result = int(parts[0]) * 60 + float(parts[1])
+        elif len(parts) == 1:
+            result = float(parts[0])
+        else:
+            return None
+        return result if result > 0 else None
+    except (ValueError, TypeError):
+        return None
 
 
 def format_time(seconds: float) -> str:
