@@ -556,7 +556,7 @@ class Kiwi:
                     help_text = (
                         "[bold]Research:[/bold]  Just type a question · /protocol <query> · /plan <query>\n"
                         "[bold]PubMed:[/bold]   /pubmed <query> · /openalex <query>\n"
-                        "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords>\n"
+                        "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords> · /stale\n"
                         "[bold]Threads:[/bold]  /thread new|use|list <name>\n"
                         "[bold]Profile:[/bold]  /profile · /profile set <field> <value>\n"
                         "[bold]Calc:[/bold]     /calc\n"
@@ -632,6 +632,47 @@ class Kiwi:
                         console.print(f"[dim]  Exported to: {path}[/dim]")
                     else:
                         console.print("[dim]  No research to export yet.[/dim]")
+
+                elif q_lower.startswith("/archive"):
+                    keywords = query[8:].strip().split() if len(query) > 8 else []
+                    stats = self.memory.archive_stats()
+                    if stats["archived_entries"] == 0:
+                        console.print("[dim]  No archived research yet (archive fills after 50 active entries).[/dim]")
+                    elif keywords:
+                        results = self.memory.search_archive(keywords, max_results=10)
+                        if results:
+                            console.print(f"[dim]  Found {len(results)} archived entries matching: {' '.join(keywords)}[/dim]")
+                            for r in results:
+                                score = r.get("quality_score", "?")
+                                console.print(
+                                    f"\n  [{r.get('ts', '')[:10]}] (score: {score}) {r.get('query', '')[:150]}\n"
+                                    f"  [dim]{r.get('response_preview', '')[:200]}...[/dim]"
+                                )
+                        else:
+                            console.print(f"[dim]  No archived entries match: {' '.join(keywords)}[/dim]")
+                    else:
+                        console.print(
+                            f"[dim]  Archive: {stats['archived_entries']} entries. "
+                            f"Search with: /archive <keywords>[/dim]"
+                        )
+
+                elif q_lower == "/stale":
+                    entries = self.memory.get_semantic_with_staleness()
+                    if not entries:
+                        console.print("[dim]  No semantic memory entries yet.[/dim]")
+                    else:
+                        stale = [e for e in entries if e["is_stale"]]
+                        fresh = [e for e in entries if not e["is_stale"]]
+                        console.print(f"[dim]  Semantic memory: {len(fresh)} current, {len(stale)} stale (>90 days)[/dim]")
+                        if stale:
+                            console.print("[yellow]  Stale entries (consider refreshing):[/yellow]")
+                            for e in stale:
+                                age = f"{e['days_old']}d old" if e["days_old"] >= 0 else "unknown age"
+                                console.print(f"    [yellow]•[/yellow] {e['topic']} ({age}): {e['content'][:100]}...")
+                        if fresh:
+                            console.print("[dim]  Current entries:[/dim]")
+                            for e in fresh[:10]:
+                                console.print(f"    [green]•[/green] {e['topic']} ({e['days_old']}d): {e['content'][:100]}...")
 
                 # ── Thread Commands ─────────────────────────────────────────
 

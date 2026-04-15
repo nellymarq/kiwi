@@ -26,6 +26,38 @@ from .planning import PlanningAgent
 from .critique import CritiqueAgent
 from .protocol import ProtocolAgent
 
+# Approximate context budget (chars → tokens ≈ chars/4)
+# Opus context window is 200K tokens. Reserve 20K for output + system prompt.
+MAX_CONTEXT_CHARS = 600_000  # ~150K tokens input budget
+
+
+def estimate_message_chars(messages: list[dict]) -> int:
+    """Rough character count across all messages."""
+    total = 0
+    for msg in messages:
+        content = msg.get("content", "")
+        if isinstance(content, str):
+            total += len(content)
+        elif isinstance(content, list):
+            for block in content:
+                if hasattr(block, "text"):
+                    total += len(block.text)
+                elif isinstance(block, dict) and "text" in block:
+                    total += len(block["text"])
+    return total
+
+
+def trim_messages_to_budget(messages: list[dict], budget: int = MAX_CONTEXT_CHARS) -> list[dict]:
+    """Keep the most recent messages that fit within the character budget.
+    Always preserves the last message (current query)."""
+    if estimate_message_chars(messages) <= budget:
+        return messages
+    # Keep removing oldest messages until we fit
+    trimmed = list(messages)
+    while len(trimmed) > 2 and estimate_message_chars(trimmed) > budget:
+        trimmed.pop(0)
+    return trimmed
+
 # Keywords that signal the user is asking about past conversations
 _MEMORY_KEYWORDS = re.compile(
     r"\b(what did we|we (talked|discussed|covered|looked at)|last time|"
@@ -291,6 +323,7 @@ class KiwiOrchestrator:
         )
 
         messages.append({"role": "user", "content": user_msg})
+        safe_messages = trim_messages_to_budget(messages)
 
         accumulated = ""
         final_content = []
@@ -300,7 +333,7 @@ class KiwiOrchestrator:
             max_tokens=14000,
             thinking={"type": "adaptive"},
             system=KIWI_SYSTEM,
-            messages=messages,
+            messages=safe_messages,
         ) as stream:
             async for text in stream.text_stream:
                 if on_text:
@@ -342,7 +375,9 @@ class KiwiOrchestrator:
             "Do not truncate — deliver the complete, improved response."
         )
 
-        refine_messages = list(messages) + [{"role": "user", "content": refine_msg}]
+        refine_messages = trim_messages_to_budget(
+            list(messages) + [{"role": "user", "content": refine_msg}]
+        )
         accumulated = ""
         final_content = []
 
