@@ -154,7 +154,7 @@ class KiwiMemory:
 
     def update_thread_context(self, name: str, context: str):
         if name in self.data.get("threads", {}):
-            self.data["threads"][name]["context"] = context[:2000]
+            self.data["threads"][name]["context"] = context[:4000]
             self.save()
 
     # ── User Notes ───────────────────────────────────────────────────────────

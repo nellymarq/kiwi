@@ -87,13 +87,18 @@ class ProtocolAgent(BaseAgent):
         query = context.get("query", "")
         research_synthesis = context.get("synthesis", "")
         profile = context.get("profile_summary", "No profile.")
+        interaction_warnings = context.get("interaction_warnings", "")
 
-        return [{
-            "role": "user",
-            "content": (
-                f"Goal/Request: {query}\n\n"
-                f"User Profile: {profile}\n\n"
-                f"Research Synthesis (base this protocol on):\n{research_synthesis}\n\n"
-                "Generate the complete evidence-based protocol."
-            ),
-        }]
+        content = (
+            f"Goal/Request: {query}\n\n"
+            f"User Profile: {profile}\n\n"
+            f"Research Synthesis (base this protocol on):\n{research_synthesis}\n\n"
+        )
+        if interaction_warnings:
+            content += (
+                f"KNOWN SUPPLEMENT INTERACTIONS (from evidence-based database — "
+                f"incorporate these warnings into Safety Notes):\n{interaction_warnings}\n\n"
+            )
+        content += "Generate the complete evidence-based protocol."
+
+        return [{"role": "user", "content": content}]

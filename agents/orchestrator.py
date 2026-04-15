@@ -369,6 +369,7 @@ class KiwiOrchestrator:
         query: str,
         synthesis: str,
         profile_summary: str,
+        interaction_warnings: str = "",
         on_text: Callable[[str], None] | None = None,
     ) -> str:
         """Optional Phase 5: Generate practical protocol from synthesis."""
@@ -376,6 +377,7 @@ class KiwiOrchestrator:
             "query": query,
             "synthesis": synthesis,
             "profile_summary": profile_summary,
+            "interaction_warnings": interaction_warnings,
         }
 
         # Stream the protocol response

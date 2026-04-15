@@ -24,6 +24,7 @@ EXPECTED_SUPPLEMENTS = [
     "creatine", "caffeine", "beta_alanine", "nitrate", "vitamin_d",
     "omega_3", "magnesium", "hmb", "ashwagandha", "iron",
     "citrulline", "taurine", "tyrosine", "melatonin", "zinc", "l_carnitine",
+    "glycerol", "collagen", "sodium_bicarbonate",
 ]
 
 

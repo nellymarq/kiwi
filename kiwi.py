@@ -197,12 +197,17 @@ def display_rwl_checkpoint(critique_data: dict, score: float, refined: bool = Fa
 
 # ── PubMed Pre-fetch ──────────────────────────────────────────────────────────
 
-def fetch_pubmed_context(query: str, pubmed: PubMedClient) -> str:
+DEFAULT_PUBMED_MAX_RESULTS = 6
+DEFAULT_PUBMED_YEARS_BACK = 8
+
+
+def fetch_pubmed_context(query: str, pubmed: PubMedClient,
+                         max_results: int = DEFAULT_PUBMED_MAX_RESULTS,
+                         years_back: int = DEFAULT_PUBMED_YEARS_BACK) -> str:
     """Run a quick PubMed search and return formatted context block."""
     with console.status("[dim cyan]  Searching PubMed for recent literature...[/dim cyan]", spinner="earth"):
-        # Build search string from query keywords
-        keywords = " ".join(query.split()[:6])  # Use first 6 words as search terms
-        articles = pubmed.search_and_fetch(keywords, max_results=6, years_back=8)
+        keywords = " ".join(query.split()[:6])
+        articles = pubmed.search_and_fetch(keywords, max_results=max_results, years_back=years_back)
 
     if articles:
         console.print(f"[dim]  PubMed: found {len(articles)} relevant articles[/dim]")
@@ -259,14 +264,17 @@ class Kiwi:
         profile_summary = self.profile.to_summary()
         memory_summary = self.memory.get_history_summary()
 
-        # Add calc metrics if profile is set
-        if self.profile.is_complete():
+        # Add calc metrics only when all required fields are actually set
+        if (self.profile.is_complete()
+                and self.profile.get("height_cm")
+                and self.profile.get("age")
+                and self.profile.get("sex")):
             try:
                 metrics = self.calc.compute_full_metrics(
                     weight_kg=self.profile.get("weight_kg"),
-                    height_cm=self.profile.get("height_cm", 170),
-                    age=self.profile.get("age", 25),
-                    sex=self.profile.get("sex", "male"),
+                    height_cm=self.profile.get("height_cm"),
+                    age=self.profile.get("age"),
+                    sex=self.profile.get("sex"),
                     activity_level=self.profile.get("activity_level", "active"),
                     body_fat_pct=self.profile.get("body_fat_pct"),
                 )
@@ -629,16 +637,19 @@ class Kiwi:
                 # ── Calculations ────────────────────────────────────────────
 
                 elif q_lower == "/calc":
-                    if not self.profile.is_complete():
-                        console.print("[dim]  Set profile first: /profile set weight_kg 80, sex male, age 25, activity_level active[/dim]")
+                    missing = [f for f in ("weight_kg", "height_cm", "age", "sex", "activity_level")
+                               if not self.profile.get(f)]
+                    if missing:
+                        console.print(f"[dim]  Missing profile fields: {', '.join(missing)}[/dim]")
+                        console.print("[dim]  Set with: /profile set <field> <value>[/dim]")
                     else:
                         try:
                             m = self.calc.compute_full_metrics(
                                 weight_kg=self.profile.get("weight_kg"),
-                                height_cm=self.profile.get("height_cm", 170),
-                                age=self.profile.get("age", 25),
-                                sex=self.profile.get("sex", "male"),
-                                activity_level=self.profile.get("activity_level", "active"),
+                                height_cm=self.profile.get("height_cm"),
+                                age=self.profile.get("age"),
+                                sex=self.profile.get("sex"),
+                                activity_level=self.profile.get("activity_level"),
                                 body_fat_pct=self.profile.get("body_fat_pct"),
                             )
                             console.print(Panel(

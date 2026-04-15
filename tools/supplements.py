@@ -559,6 +559,101 @@ SUPPLEMENT_DB: dict[str, DosingProtocol] = {
             "Stephens et al. (2013) Med Sci Sports Exerc — Carnitine and exercise metabolism",
         ],
     ),
+
+    "glycerol": DosingProtocol(
+        name="Glycerol",
+        category="ergogenic",
+        loading_dose="1.2g/kg with 26mL/kg water, 60–120 min pre-exercise (hyperhydration protocol)",
+        maintenance_dose="Not applicable — used acutely pre-exercise",
+        timing="60–120 min before exercise in hot conditions",
+        duration="Acute — single pre-exercise dose",
+        best_forms=["Glycerol powder (65% concentration)", "GlycerSize (patented)"],
+        absorption_enhancers=["Co-ingest with large fluid volume (500–1200mL)"],
+        absorption_inhibitors=[],
+        food_interaction="Take with water, not food — the water is the delivery mechanism",
+        onset_time="60–120 min for hyperhydration effect (plasma volume expansion)",
+        washout="Renal clearance within 4–6 hours",
+        ul_or_noael="No established UL; GI distress common above 1.5g/kg",
+        contraindications=["Kidney disease", "Congestive heart failure", "Hypervolemia"],
+        sport_specific_notes={
+            "endurance": "Delays dehydration by 600–1000mL effective fluid retention; most useful in >60min events in heat",
+            "combat_sports": "Can mask weight post-weigh-in via rapid fluid retention (controversial in combat sports)",
+            "tactical": "Useful for sustained operations in heat where fluid access is limited",
+        },
+        evidence="🟡 Moderate — Consistent hyperhydration effect; performance benefit context-dependent",
+        mechanism="Osmolyte distributed across total body water. Increases plasma volume by reducing renal "
+                  "free water clearance (aquaporin-mediated). Creates a fluid reservoir that delays the "
+                  "onset of dehydration during prolonged exercise in the heat",
+        key_references=[
+            "van Rosendal et al. (2010) Sports Med — Glycerol hyperhydration review",
+            "Goulet et al. (2007) BJSM — Glycerol-induced hyperhydration meta-analysis",
+        ],
+    ),
+
+    "collagen": DosingProtocol(
+        name="Collagen Peptides / Gelatin",
+        category="recovery",
+        loading_dose=None,
+        maintenance_dose="15g collagen peptides or gelatin, with 50mg vitamin C",
+        timing="30–60 min before exercise or rehab session (peak amino acid delivery to tendon)",
+        duration="Chronic — 12+ weeks for tendon adaptation; 6 months for injury recovery",
+        best_forms=["Hydrolyzed collagen peptides (Type I)", "Gelatin (with vitamin C)"],
+        absorption_enhancers=["Vitamin C (50–100mg — required cofactor for collagen synthesis)",
+                              "Timing before exercise (loading maximizes tendon collagen synthesis rate)"],
+        absorption_inhibitors=[],
+        food_interaction="Can mix into any liquid; vitamin C co-ingestion is essential",
+        onset_time="Peak plasma glycine/proline: 60 min; tendon adaptation: 3–6 months",
+        washout="No accumulation; amino acids cleared normally",
+        ul_or_noael="No established UL; 15–30g/d used safely in studies",
+        contraindications=["Histamine intolerance (some collagen products trigger histamine release)"],
+        sport_specific_notes={
+            "endurance": "Patellar and Achilles tendinopathy prevention in runners",
+            "strength": "Joint health under heavy loading; may reduce joint pain in older athletes",
+            "combat_sports": "Supports connective tissue resilience under repetitive impact",
+        },
+        evidence="🟡 Moderate — Shaw et al. (2017) demonstrated doubled collagen synthesis rate with gelatin + vitamin C pre-exercise",
+        mechanism="Provides glycine, proline, and hydroxyproline — rate-limiting amino acids for collagen "
+                  "synthesis. When taken before exercise, mechanical loading drives the amino acids into "
+                  "tendons/ligaments via the exercise-induced increase in collagen synthesis (peaks 6h post). "
+                  "Vitamin C is a required cofactor for prolyl hydroxylase (collagen cross-linking)",
+        key_references=[
+            "Shaw et al. (2017) Am J Clin Nutr — Vitamin C–enriched gelatin and collagen synthesis",
+            "Baar (2017) J Physiol — Minimizing injury and maximizing return to play",
+        ],
+    ),
+
+    "sodium_bicarbonate": DosingProtocol(
+        name="Sodium Bicarbonate",
+        category="ergogenic",
+        loading_dose="0.3g/kg, 60–90 min pre-exercise (serial loading: 0.1g/kg × 3 doses over 90 min to reduce GI issues)",
+        maintenance_dose="0.3g/kg acute; or chronic loading 0.5g/kg/d split across meals for 3–5 days",
+        timing="60–90 min pre-exercise (acute); or chronic loading 3–5 days before competition",
+        duration="Acute (single dose) or short-term chronic (3–5 day loading)",
+        best_forms=["Sodium bicarbonate capsules (reduces GI distress vs. solution)",
+                    "Powder dissolved in water (faster absorption but more GI issues)"],
+        absorption_enhancers=["Co-ingest with small carb-rich meal (delays absorption, reduces GI distress)"],
+        absorption_inhibitors=[],
+        food_interaction="Take with small meal to reduce nausea; avoid carbonated beverages",
+        onset_time="Peak blood bicarbonate: 60–90 min post-ingestion",
+        washout="Renal clearance within 4–6 hours",
+        ul_or_noael="Acute dose >0.4g/kg significantly increases GI distress; no long-term UL established",
+        contraindications=["Hypertension (sodium load)", "Kidney disease", "Metabolic alkalosis",
+                           "Low-sodium diet prescriptions"],
+        sport_specific_notes={
+            "endurance": "Most effective for efforts lasting 1–7 min (high-intensity, glycolytic); e.g., 800m–1500m, rowing, 4km cycling TT",
+            "strength": "May enhance muscular endurance (rep count) at moderate loads; less effective for 1RM",
+            "combat_sports": "Enhances repeated high-intensity bout performance; useful for multi-round combat",
+        },
+        evidence="🟢 Strong — Well-established ergogenic effect in meta-analyses for high-intensity exercise",
+        mechanism="Increases blood buffering capacity (raises bicarbonate concentration and blood pH). "
+                  "Enhances efflux of H⁺ and lactate from working muscle via MCT1/MCT4 transporters "
+                  "(increased extracellular pH gradient). Delays intramuscular acidosis during glycolytic "
+                  "exercise, extending time to fatigue at intensities above lactate threshold",
+        key_references=[
+            "Carr et al. (2011) IJSN — Sodium bicarbonate and exercise performance meta-analysis",
+            "McNaughton et al. (2016) Sports Med — Sodium bicarbonate position stand",
+        ],
+    ),
 }
 
 # ── Aliases ──────────────────────────────────────────────────────────────────
@@ -612,6 +707,16 @@ SUPPLEMENT_ALIASES: dict[str, str] = {
     "lclt": "l_carnitine",
     "alcar": "l_carnitine",
     "acetyl-l-carnitine": "l_carnitine",
+    "glycerine": "glycerol",
+    "glycerine powder": "glycerol",
+    "glycersize": "glycerol",
+    "collagen peptides": "collagen",
+    "gelatin": "collagen",
+    "type 1 collagen": "collagen",
+    "bicarb": "sodium_bicarbonate",
+    "baking soda": "sodium_bicarbonate",
+    "nahco3": "sodium_bicarbonate",
+    "soda loading": "sodium_bicarbonate",
 }
 
 

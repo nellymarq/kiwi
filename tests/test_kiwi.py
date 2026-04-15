@@ -451,3 +451,115 @@ def test_protocol_agent_builds_messages():
     assert "Creatine protocol" in messages[0]["content"]
     assert "🟢 Strong evidence" in messages[0]["content"]
     assert "strength training" in messages[0]["content"]
+
+
+# ── Memory Archiving ────────────────────────────────────────────────────────
+
+def test_memory_archive_overflow(tmp_path, monkeypatch):
+    """Episodic entries beyond limit should be archived, not discarded."""
+    import memory.store as store_mod
+    monkeypatch.setattr(store_mod, "KIWI_DIR", tmp_path)
+    monkeypatch.setattr(store_mod, "MEMORY_JSON", tmp_path / "memory.json")
+    monkeypatch.setattr(store_mod, "MEMORY_MD", tmp_path / "memory.md")
+    monkeypatch.setattr(store_mod, "ARCHIVE_JSON", tmp_path / "archive.json")
+    monkeypatch.setattr(store_mod, "EPISODIC_LIMIT", 5)
+
+    from memory.store import KiwiMemory
+    mem = KiwiMemory()
+    for i in range(8):
+        mem.add_exchange(f"query {i}", f"response {i}", 0.85)
+
+    assert len(mem.data["episodic"]) == 5
+    archive = json.loads((tmp_path / "archive.json").read_text())
+    assert len(archive) == 3
+    assert archive[0]["query"] == "query 0"
+
+
+def test_memory_search_archive(tmp_path, monkeypatch):
+    """Archive search should find entries by keyword."""
+    import memory.store as store_mod
+    monkeypatch.setattr(store_mod, "KIWI_DIR", tmp_path)
+    monkeypatch.setattr(store_mod, "MEMORY_JSON", tmp_path / "memory.json")
+    monkeypatch.setattr(store_mod, "MEMORY_MD", tmp_path / "memory.md")
+    monkeypatch.setattr(store_mod, "ARCHIVE_JSON", tmp_path / "archive.json")
+
+    archive_data = [
+        {"ts": "2026-01-01", "query": "creatine loading protocol", "response_preview": "5g/d..."},
+        {"ts": "2026-01-02", "query": "caffeine timing", "response_preview": "30 min pre..."},
+    ]
+    (tmp_path / "archive.json").write_text(json.dumps(archive_data))
+
+    from memory.store import KiwiMemory
+    mem = KiwiMemory()
+    results = mem.search_archive(["creatine"])
+    assert len(results) == 1
+    assert "creatine" in results[0]["query"]
+
+
+def test_semantic_staleness(tmp_path, monkeypatch):
+    """Semantic entries older than threshold should be flagged as stale."""
+    import memory.store as store_mod
+    monkeypatch.setattr(store_mod, "KIWI_DIR", tmp_path)
+    monkeypatch.setattr(store_mod, "MEMORY_JSON", tmp_path / "memory.json")
+    monkeypatch.setattr(store_mod, "MEMORY_MD", tmp_path / "memory.md")
+    monkeypatch.setattr(store_mod, "ARCHIVE_JSON", tmp_path / "archive.json")
+
+    from memory.store import KiwiMemory
+    from datetime import datetime, timedelta, timezone
+    mem = KiwiMemory()
+    mem.add_semantic("fresh_topic", "recent data")
+    old_date = (datetime.now(timezone.utc) - timedelta(days=120)).isoformat()
+    mem.data["semantic"]["stale_topic"] = {"content": "old data", "updated": old_date}
+    mem.save()
+
+    entries = mem.get_semantic_with_staleness()
+    fresh = next(e for e in entries if e["topic"] == "fresh_topic")
+    stale = next(e for e in entries if e["topic"] == "stale_topic")
+    assert not fresh["is_stale"]
+    assert stale["is_stale"]
+    assert stale["days_old"] >= 120
+
+
+# ── Profile Validation ──────────────────────────────────────────────────────
+
+def test_profile_validation_ranges():
+    """Profile should reject out-of-range values."""
+    from memory.profile import UserProfile
+    p = UserProfile()
+    p.data = {}
+    result = p.set("age", "-5")
+    assert isinstance(result, str) and "between" in result
+
+    result = p.set("weight_kg", "500")
+    assert isinstance(result, str) and "between" in result
+
+    result = p.set("age", "25")
+    assert result is True
+
+
+def test_profile_validation_enums():
+    """Profile should reject invalid enum values."""
+    from memory.profile import UserProfile
+    p = UserProfile()
+    p.data = {}
+    result = p.set("sex", "helicopter")
+    assert isinstance(result, str) and "must be" in result
+
+    result = p.set("activity_level", "extreme")
+    assert isinstance(result, str) and "must be" in result
+
+    result = p.set("sex", "M")
+    assert result is True
+    assert p.get("sex") == "male"
+
+
+def test_profile_validation_training_status():
+    """Profile should accept valid training status values."""
+    from memory.profile import UserProfile
+    p = UserProfile()
+    p.data = {}
+    result = p.set("training_status", "elite")
+    assert result is True
+
+    result = p.set("training_status", "pro")
+    assert isinstance(result, str)
