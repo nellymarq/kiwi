@@ -11,13 +11,16 @@ Storage: ~/.kiwi/memory.json + ~/.kiwi/memory.md (human-readable log)
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 KIWI_DIR = Path.home() / ".kiwi"
 MEMORY_JSON = KIWI_DIR / "memory.json"
 MEMORY_MD = KIWI_DIR / "memory.md"
+ARCHIVE_JSON = KIWI_DIR / "episodic_archive.json"
+EPISODIC_LIMIT = 50
+SEMANTIC_STALE_DAYS = 90
 
 
 class KiwiMemory:
@@ -74,7 +77,10 @@ class KiwiMemory:
             "thread": thread,
         }
         self.data["episodic"].append(entry)
-        self.data["episodic"] = self.data["episodic"][-50:]  # keep last 50
+        if len(self.data["episodic"]) > EPISODIC_LIMIT:
+            overflow = self.data["episodic"][:-EPISODIC_LIMIT]
+            self.data["episodic"] = self.data["episodic"][-EPISODIC_LIMIT:]
+            self._archive_episodic(overflow)
         self.data["total_queries"] = self.data.get("total_queries", 0) + 1
         self.data["last_session"] = datetime.now().isoformat()
 
@@ -211,6 +217,138 @@ class KiwiMemory:
                 for k, v in list(self.data.get("threads", {}).items())[:5]
             ],
         }
+
+    # ── Conversational Context ──────────────────────────────────────────────
+
+    def get_conversational_context(self, query: str) -> str:
+        """
+        Build a memory context block for injection into synthesis/conversation.
+        Keyword-matches query against episodic history, semantic memory, and user notes.
+        Returns formatted string capped at ~1000 tokens.
+        """
+        keywords = [
+            w.lower() for w in query.split()
+            if len(w) > 3 and w.lower() not in {
+                "what", "when", "where", "which", "about", "could",
+                "would", "should", "have", "been", "this", "that",
+                "with", "from", "they", "their", "there", "than",
+                "does", "were", "more", "also", "into", "some",
+            }
+        ]
+        if not keywords:
+            return ""
+
+        sections: list[str] = []
+
+        # Episodic matches (max 3)
+        episodic_hits = []
+        for ep in reversed(self.data.get("episodic", [])):
+            q_text = ep.get("query", "").lower()
+            preview = ep.get("response_preview", "").lower()
+            if any(kw in q_text or kw in preview for kw in keywords):
+                date = ep.get("ts", "")[:10]
+                score = ep.get("quality_score", "?")
+                episodic_hits.append(
+                    f"[{date}] (score: {score}) Q: {ep['query'][:150]}\n"
+                    f"  → {ep.get('response_preview', '')[:200]}"
+                )
+            if len(episodic_hits) >= 3:
+                break
+        if episodic_hits:
+            sections.append("Past conversations:\n" + "\n".join(episodic_hits))
+
+        # Semantic matches (max 3)
+        semantic_hits = self.search_semantic(keywords)[:3]
+        if semantic_hits:
+            sem_lines = [f"• {topic}: {content[:200]}" for topic, content in semantic_hits]
+            sections.append("Related knowledge:\n" + "\n".join(sem_lines))
+
+        # User notes matches (max 2)
+        note_hits = []
+        for note_entry in reversed(self.data.get("user_notes", [])):
+            note_text = note_entry.get("note", "")
+            if any(kw in note_text.lower() for kw in keywords):
+                date = note_entry.get("ts", "")[:10]
+                note_hits.append(f"[{date}] {note_text[:150]}")
+            if len(note_hits) >= 2:
+                break
+        if note_hits:
+            sections.append("User notes:\n" + "\n".join(note_hits))
+
+        return "\n\n".join(sections) if sections else ""
+
+    # ── Episodic Archive ──────────────────────────────────────────────────────
+
+    def _archive_episodic(self, entries: list[dict]):
+        """Move overflow episodic entries to archive file."""
+        archive = []
+        if ARCHIVE_JSON.exists():
+            try:
+                archive = json.loads(ARCHIVE_JSON.read_text())
+            except (json.JSONDecodeError, OSError):
+                pass
+        archive.extend(entries)
+        ARCHIVE_JSON.write_text(json.dumps(archive, indent=2, default=str))
+
+    def search_archive(self, keywords: list[str], max_results: int = 10) -> list[dict]:
+        """Search archived episodic memory by keywords."""
+        if not ARCHIVE_JSON.exists():
+            return []
+        try:
+            archive = json.loads(ARCHIVE_JSON.read_text())
+        except (json.JSONDecodeError, OSError):
+            return []
+        results = []
+        kws = [k.lower() for k in keywords if len(k) > 2]
+        if not kws:
+            return archive[-max_results:]
+        for entry in reversed(archive):
+            q = entry.get("query", "").lower()
+            r = entry.get("response_preview", "").lower()
+            if any(kw in q or kw in r for kw in kws):
+                results.append(entry)
+            if len(results) >= max_results:
+                break
+        return results
+
+    def archive_stats(self) -> dict:
+        """Return archive size info."""
+        if not ARCHIVE_JSON.exists():
+            return {"archived_entries": 0}
+        try:
+            archive = json.loads(ARCHIVE_JSON.read_text())
+            return {"archived_entries": len(archive)}
+        except (json.JSONDecodeError, OSError):
+            return {"archived_entries": 0}
+
+    # ── Semantic Staleness ─────────────────────────────────────────────────────
+
+    def get_semantic_with_staleness(self) -> list[dict]:
+        """Return all semantic entries annotated with staleness."""
+        now = datetime.now(timezone.utc)
+        results = []
+        for topic, entry in self.data.get("semantic", {}).items():
+            content = entry.get("content", "") if isinstance(entry, dict) else str(entry)
+            updated = entry.get("updated", "") if isinstance(entry, dict) else ""
+            days_old = 0
+            is_stale = False
+            try:
+                dt = datetime.fromisoformat(updated.replace("Z", "+00:00"))
+                if dt.tzinfo is None:
+                    dt = dt.replace(tzinfo=timezone.utc)
+                days_old = (now - dt).days
+                is_stale = days_old > SEMANTIC_STALE_DAYS
+            except (ValueError, TypeError):
+                is_stale = True
+                days_old = -1
+            results.append({
+                "topic": topic,
+                "content": content,
+                "updated": updated,
+                "days_old": days_old,
+                "is_stale": is_stale,
+            })
+        return results
 
     # ── Human-Readable Log ───────────────────────────────────────────────────
 

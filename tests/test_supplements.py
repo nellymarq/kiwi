@@ -23,14 +23,15 @@ from tools.supplements import (
 EXPECTED_SUPPLEMENTS = [
     "creatine", "caffeine", "beta_alanine", "nitrate", "vitamin_d",
     "omega_3", "magnesium", "hmb", "ashwagandha", "iron",
+    "citrulline", "taurine", "tyrosine", "melatonin", "zinc", "l_carnitine",
 ]
 
 
 def test_all_supplements_present():
-    """All 10 supplements must be in the database."""
+    """All supplements must be in the database."""
     for name in EXPECTED_SUPPLEMENTS:
         assert name in SUPPLEMENT_DB, f"Missing supplement: {name}"
-    assert len(SUPPLEMENT_DB) == 10
+    assert len(SUPPLEMENT_DB) == len(EXPECTED_SUPPLEMENTS)
 
 
 @pytest.mark.parametrize("key", EXPECTED_SUPPLEMENTS)
@@ -197,9 +198,9 @@ def test_format_dosing_protocol_safety():
 # ── Category Listing ─────────────────────────────────────────────────────────
 
 def test_list_all_supplements():
-    """Listing all supplements should show all 10."""
+    """Listing all supplements should show all entries."""
     output = list_supplements_by_category()
-    assert "Total: 10" in output
+    assert f"Total: {len(SUPPLEMENT_DB)}" in output
     assert "ERGOGENIC" in output
     assert "HEALTH" in output
 

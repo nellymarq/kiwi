@@ -82,6 +82,30 @@ from tools.training_zones import (
     format_hr_zones, format_power_zones, format_pace_zones,
     format_intensity_distribution,
 )
+from tools.injury_prevention import (
+    calculate_acwr, check_ten_percent_rule, score_fms_movement,
+    calculate_fms_composite, screen_overuse_risk, get_prevention_protocol,
+    return_to_sport_decision, format_acwr_report, format_prevention_protocol,
+    list_prevention_protocols, PROTOCOL_DB,
+)
+from tools.female_athlete import (
+    calculate_energy_availability as calc_ea_female, get_cycle_phase,
+    match_training_to_phase, screen_reds, postpartum_return_protocol,
+    calculate_iron_needs, format_ea_report, format_reds_report,
+    format_cycle_training, CYCLE_PHASES,
+)
+from tools.environmental import (
+    altitude_training_protocol, heat_acclimatization_protocol,
+    air_quality_adjustment, cold_exposure_protocol, jet_lag_protocol,
+    format_altitude_protocol, format_heat_protocol, format_air_quality,
+    format_jet_lag,
+)
+from tools.mental_performance import (
+    assess_competition_anxiety, assess_mental_fatigue, assess_burnout,
+    get_visualization_protocol, generate_pre_competition_routine,
+    list_visualization_protocols, format_anxiety_report, format_burnout_report,
+    format_visualization, VISUALIZATION_DB,
+)
 from memory.store import KiwiMemory
 from memory.profile import UserProfile
 
@@ -593,12 +617,14 @@ class Kiwi:
                     parts = query.split(maxsplit=3)
                     if len(parts) >= 4:
                         field, value = parts[2], parts[3]
-                        ok = self.profile.set(field, value)
-                        if ok:
+                        result = self.profile.set(field, value)
+                        if result is True:
                             console.print(f"[dim]  Profile updated: {field} = {value}[/dim]")
-                        else:
+                        elif result is False:
                             console.print(f"[dim red]  Unknown field: {field}. "
                                           f"Valid: {', '.join(self.profile.FIELDS.keys())}[/dim red]")
+                        else:
+                            console.print(f"[dim red]  {result}[/dim red]")
 
                 # ── Calculations ────────────────────────────────────────────
 

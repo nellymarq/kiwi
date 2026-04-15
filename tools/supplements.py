@@ -368,6 +368,197 @@ SUPPLEMENT_DB: dict[str, DosingProtocol] = {
             "DellaValle (2011) Med Sci Sports Exerc — Iron depletion in female athletes",
         ],
     ),
+
+    "citrulline": DosingProtocol(
+        name="L-Citrulline",
+        category="ergogenic",
+        loading_dose=None,
+        maintenance_dose="6–8g/d (or 8–10g citrulline malate 2:1)",
+        timing="30–60 min pre-workout",
+        duration="Acute benefits from single dose; enhanced with chronic use (7+ days)",
+        best_forms=["L-citrulline (pure)", "Citrulline malate 2:1"],
+        absorption_enhancers=["Empty stomach (faster absorption)"],
+        absorption_inhibitors=[],
+        food_interaction="Take on empty stomach or with light carb drink",
+        onset_time="Acute: 30–60 min (peak plasma arginine)",
+        washout="Clears within 24h; no accumulation concerns",
+        ul_or_noael="NOAEL: 15g/d (short-term); no established UL",
+        contraindications=["Citrullinemia (rare genetic disorder)", "PDE5 inhibitors (additive hypotension)"],
+        sport_specific_notes={
+            "strength": "May enhance rep performance (+2–3 reps at 60–80% 1RM) via improved blood flow",
+            "endurance": "Improves time-to-exhaustion; reduces perceived exertion at submaximal intensities",
+            "combat_sports": "Enhances repeated high-intensity bouts; reduces muscle soreness post-session",
+        },
+        evidence="🟡 Moderate — Consistent ergogenic signal in meta-analyses but effect sizes modest",
+        mechanism="Citrulline → arginine (via ASS1/ASL in kidneys) → nitric oxide (via eNOS). "
+                  "Bypasses hepatic first-pass metabolism (unlike oral arginine). Increases plasma arginine "
+                  "~2x more effectively than equimolar arginine. Enhances blood flow, reduces O2 cost of exercise, "
+                  "may buffer ammonia accumulation",
+        key_references=[
+            "Trexler et al. (2019) JISSN — Citrulline supplementation meta-analysis",
+            "Gonzalez & Trexler (2020) Nutrients — Citrulline and exercise performance",
+        ],
+    ),
+
+    "taurine": DosingProtocol(
+        name="Taurine",
+        category="ergogenic",
+        loading_dose=None,
+        maintenance_dose="1–3g/d",
+        timing="60 min pre-exercise or with meals",
+        duration="Chronic (14+ days) for maximal benefit; acute effects also documented",
+        best_forms=["L-taurine (free-form powder or capsule)"],
+        absorption_enhancers=["Can be taken with or without food"],
+        absorption_inhibitors=["Beta-alanine (competitive transport; separate by 2+ hours)"],
+        food_interaction="Either; no significant food interaction",
+        onset_time="Acute effects within 1–2 hours; tissue saturation over 7–14 days",
+        washout="Plasma half-life ~1h; muscle stores deplete over 1–2 weeks",
+        ul_or_noael="NOAEL: 6g/d (EFSA); well-tolerated up to 10g/d in studies",
+        contraindications=["Bipolar disorder (theoretical — may affect GABA)", "Kidney disease (impaired clearance)"],
+        sport_specific_notes={
+            "endurance": "May improve time-to-exhaustion (+1.7% in meta-analysis); reduces oxidative stress",
+            "strength": "Limited direct strength benefit; may reduce DOMS and muscle damage markers",
+            "combat_sports": "Cytoprotective against exercise-induced muscle damage; supports repeated-bout effect",
+        },
+        evidence="🟡 Moderate — Meta-analyses show small but consistent endurance benefit",
+        mechanism="Cell volume regulator (osmolyte), antioxidant (scavenges HOCl, stabilizes membranes), "
+                  "calcium handling modulator in muscle (enhances SR Ca²⁺ release/reuptake), "
+                  "bile acid conjugation, GABA-A receptor modulation (anxiolytic at high doses)",
+        key_references=[
+            "Waldron et al. (2018) Sports Med — Taurine and exercise: systematic review",
+            "Kurtz et al. (2021) JISSN — Taurine in sport and exercise",
+        ],
+    ),
+
+    "tyrosine": DosingProtocol(
+        name="L-Tyrosine",
+        category="cognitive",
+        loading_dose=None,
+        maintenance_dose="500–2000mg (150mg/kg for acute stress protection)",
+        timing="30–60 min before cognitive or physical demand; pre-competition",
+        duration="Acute dosing — most effective under stress/sleep deprivation",
+        best_forms=["L-tyrosine (free-form)", "N-acetyl-L-tyrosine (NALT — lower bioavailability)"],
+        absorption_enhancers=["Empty stomach", "Vitamin B6 (cofactor for conversion)"],
+        absorption_inhibitors=["Competing large neutral amino acids (high-protein meal)"],
+        food_interaction="Best on empty stomach or with carb-only snack",
+        onset_time="30–60 min (peak plasma levels)",
+        washout="Plasma half-life ~2h; no accumulation",
+        ul_or_noael="No established UL; 150mg/kg/d used safely in military studies",
+        contraindications=["Hyperthyroidism (tyrosine → thyroid hormone precursor)", "MAO inhibitors",
+                           "Melanoma (theoretical — tyrosine → melanin pathway)"],
+        sport_specific_notes={
+            "combat_sports": "Preserves cognitive function during weight cuts and sleep restriction",
+            "endurance": "May maintain pacing strategy under heat stress or sleep deprivation",
+            "tactical": "Military research shows preserved working memory under acute stress (cold, sleep loss)",
+        },
+        evidence="🟡 Moderate — Strong under stress/depletion; minimal benefit under normal conditions",
+        mechanism="Precursor to catecholamines: tyrosine → L-DOPA (via TH) → dopamine → norepinephrine → epinephrine. "
+                  "Under stress, catecholamine synthesis is rate-limited by tyrosine availability. "
+                  "Supplementation replenishes the precursor pool, maintaining cognitive performance "
+                  "during conditions that deplete catecholamines (cold, sleep loss, sustained ops)",
+        key_references=[
+            "Jongkees et al. (2015) J Clin Psychopharmacol — Tyrosine and cognitive performance meta-analysis",
+            "Neri et al. (1995) Aviat Space Environ Med — Tyrosine and sustained military performance",
+        ],
+    ),
+
+    "melatonin": DosingProtocol(
+        name="Melatonin",
+        category="health",
+        loading_dose=None,
+        maintenance_dose="0.3–1mg for sleep onset; 0.5–5mg for jet lag; 3–5mg for shift work",
+        timing="30–60 min before desired sleep onset; for jet lag: at destination bedtime",
+        duration="Short-term recommended; long-term safety data limited but generally favorable",
+        best_forms=["Immediate-release (sleep onset)", "Extended-release (sleep maintenance)",
+                    "Sublingual (fastest onset, bypasses first-pass)"],
+        absorption_enhancers=["Darkness (endogenous production synergy)", "Cool ambient temperature"],
+        absorption_inhibitors=["Blue light exposure (suppresses endogenous + reduces efficacy)",
+                               "NSAIDs (some reduce endogenous melatonin)", "Beta-blockers (reduce endogenous)"],
+        food_interaction="Take on empty stomach or with light snack; high-fat meals delay absorption",
+        onset_time="20–40 min (sublingual: 10–15 min)",
+        washout="Half-life: 20–50 min; clears fully by morning at physiological doses",
+        ul_or_noael="No established UL; 0.3–1mg is physiological; >5mg is pharmacological",
+        contraindications=["Autoimmune conditions (immunostimulatory)", "Seizure disorders",
+                           "Concurrent sedative medications", "Pregnancy/breastfeeding"],
+        sport_specific_notes={
+            "endurance": "Useful for travel-heavy athletes crossing time zones; 0.5mg at destination bedtime",
+            "combat_sports": "Supports recovery sleep after evening competitions; use lowest effective dose",
+            "tactical": "Shift work protocol: 1–3mg before day sleep in blackout conditions",
+        },
+        evidence="🟢 Strong for jet lag; 🟡 Moderate for general sleep onset; 🟠 Weak for performance enhancement",
+        mechanism="Binds MT1/MT2 receptors in suprachiasmatic nucleus → phase-shifts circadian clock. "
+                  "MT1 activation promotes sleepiness; MT2 activation shifts circadian phase. "
+                  "Also: potent antioxidant (hydroxyl radical scavenger), mild anti-inflammatory, "
+                  "mild core body temperature reduction (facilitates sleep onset)",
+        key_references=[
+            "Costello et al. (2014) Eur J Appl Physiol — Melatonin and exercise recovery",
+            "Herxheimer & Petrie (2002) Cochrane — Melatonin for jet lag",
+        ],
+    ),
+
+    "zinc": DosingProtocol(
+        name="Zinc",
+        category="health",
+        loading_dose=None,
+        maintenance_dose="15–30mg/d elemental zinc (higher end if deficient)",
+        timing="With meals to reduce GI side effects; separate from iron by 2+ hours",
+        duration="Chronic for deficiency correction; 8–12 weeks then reassess",
+        best_forms=["Zinc picolinate", "Zinc bisglycinate", "Zinc citrate", "Zinc acetate (for acute cold)"],
+        absorption_enhancers=["Animal protein (releases zinc from phytate complexes)", "Citric acid"],
+        absorption_inhibitors=["Phytates (grains, legumes)", "Calcium (>600mg)", "Iron (>25mg at same time)",
+                               "Copper (competitive absorption)"],
+        food_interaction="Take with food to minimize nausea; avoid high-phytate meals",
+        onset_time="Serum levels: days; immune/testosterone effects: 4–8 weeks",
+        washout="Body stores deplete over 2–4 weeks; no accumulation risk at recommended doses",
+        ul_or_noael="UL: 40mg/d (IOM); chronic >50mg/d risks copper depletion",
+        contraindications=["Concurrent quinolone/tetracycline antibiotics (chelation)", "Copper deficiency"],
+        sport_specific_notes={
+            "strength": "Supports testosterone maintenance in zinc-deficient athletes; no supra-physiological effect",
+            "endurance": "Sweat losses 0.5–1mg/L; high-volume athletes at risk of depletion",
+            "combat_sports": "Weight-cut diets often zinc-poor; supplement during caloric restriction",
+        },
+        evidence="🟢 Strong for deficiency correction; 🟠 Weak for supplementation above sufficiency",
+        mechanism="Cofactor for 300+ enzymes including carbonic anhydrase (acid-base balance), "
+                  "superoxide dismutase (antioxidant), alcohol dehydrogenase. Essential for testosterone synthesis "
+                  "(5α-reductase cofactor), immune function (thymulin activation, T-cell maturation), "
+                  "protein synthesis, and wound healing. Deficiency impairs growth hormone axis",
+        key_references=[
+            "Kilic et al. (2006) Neuro Endocrinol Lett — Zinc and testosterone in athletes",
+            "Prasad (2008) Mol Med — Zinc in immune function",
+        ],
+    ),
+
+    "l_carnitine": DosingProtocol(
+        name="L-Carnitine",
+        category="ergogenic",
+        loading_dose="2g/d × 12–24 weeks (muscle loading requires chronic dosing with carbs)",
+        maintenance_dose="2–3g/d with 30–80g carbohydrate (insulin-dependent uptake)",
+        timing="With carbohydrate-containing meal (insulin drives muscle uptake)",
+        duration="Chronic — 12–24 weeks minimum for intramuscular loading",
+        best_forms=["L-carnitine L-tartrate (LCLT — best for exercise)", "Acetyl-L-carnitine (ALCAR — cognitive)",
+                    "Glycine propionyl-L-carnitine (GPLC — blood flow)"],
+        absorption_enhancers=["Carbohydrate co-ingestion (50–80g — insulin-mediated muscle uptake is essential)"],
+        absorption_inhibitors=["Low insulin state (fasted) — carnitine stays in plasma, doesn't enter muscle"],
+        food_interaction="MUST take with high-carb meal; fasted supplementation is ineffective for muscle loading",
+        onset_time="Plasma: immediate; muscle loading: 12–24 weeks with carb co-ingestion",
+        washout="Muscle stores maintained for weeks after cessation",
+        ul_or_noael="No established UL; 2–3g/d used safely in long-term studies; >3g/d may cause GI distress",
+        contraindications=["Hypothyroidism (may impair thyroid hormone action)", "Seizure history (ALCAR form)"],
+        sport_specific_notes={
+            "endurance": "Shifts substrate use toward fat oxidation at submaximal intensities when muscle stores loaded",
+            "strength": "LCLT form reduces muscle damage markers and soreness post-resistance exercise",
+            "combat_sports": "May support recovery during high-frequency training blocks",
+        },
+        evidence="🟡 Moderate — Effective only with chronic loading + carb co-ingestion (Wall et al. 2011)",
+        mechanism="Carnitine shuttle: transports long-chain fatty acids across inner mitochondrial membrane "
+                  "(CPT1/CPT2 system). When muscle carnitine is elevated, spares glycogen by increasing fat "
+                  "oxidation at moderate intensities. Also buffers acetyl-CoA:CoA ratio (via carnitine "
+                  "acetyltransferase), potentially reducing lactate accumulation during high-intensity work",
+        key_references=[
+            "Wall et al. (2011) J Physiol — Chronic carnitine + carb loading increases muscle carnitine",
+            "Stephens et al. (2013) Med Sci Sports Exerc — Carnitine and exercise metabolism",
+        ],
+    ),
 }
 
 # ── Aliases ──────────────────────────────────────────────────────────────────
@@ -406,6 +597,21 @@ SUPPLEMENT_ALIASES: dict[str, str] = {
     "ferrous sulfate": "iron",
     "ferrous bisglycinate": "iron",
     "fe": "iron",
+    "l-citrulline": "citrulline",
+    "citrulline malate": "citrulline",
+    "l-taurine": "taurine",
+    "l-tyrosine": "tyrosine",
+    "nalt": "tyrosine",
+    "n-acetyl-l-tyrosine": "tyrosine",
+    "sleep": "melatonin",
+    "zn": "zinc",
+    "zinc picolinate": "zinc",
+    "zinc bisglycinate": "zinc",
+    "carnitine": "l_carnitine",
+    "l-carnitine": "l_carnitine",
+    "lclt": "l_carnitine",
+    "alcar": "l_carnitine",
+    "acetyl-l-carnitine": "l_carnitine",
 }
 
 

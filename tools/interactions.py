@@ -189,6 +189,73 @@ INTERACTION_DB: list[Interaction] = [
         recommendation="CONTRAINDICATED: Do not combine 5-HTP with any serotonergic medication without medical supervision.",
         sources=["Turner et al. 2006 Psychopharmacology"],
     ),
+
+    # ── New interactions for expanded supplement DB ──────────────────────────
+
+    Interaction(
+        compound_a="citrulline", compound_b="nitrate",
+        severity="synergistic",
+        mechanism="Citrulline provides arginine substrate for eNOS; nitrates provide NO via nitrate→nitrite→NO pathway. Dual NO pathway activation.",
+        evidence_tier="🟡",
+        recommendation="Combine for enhanced nitric oxide production. 6g citrulline + 400mg nitrate (from beetroot). Take 60–90 min pre-exercise.",
+        sources=["Bailey et al. 2015 Free Radic Biol Med"],
+    ),
+    Interaction(
+        compound_a="citrulline", compound_b="pde5 inhibitors",
+        severity="caution",
+        mechanism="Both increase NO signaling — citrulline via arginine/eNOS, PDE5 inhibitors by preventing cGMP breakdown. Additive vasodilation and hypotension risk.",
+        evidence_tier="🟡",
+        recommendation="Use with caution. May cause excessive blood pressure drop. Consult physician before combining.",
+        sources=["Schwedhelm et al. 2008 Br J Clin Pharmacol"],
+    ),
+    Interaction(
+        compound_a="taurine", compound_b="beta-alanine",
+        severity="monitor",
+        mechanism="Share the same membrane transporter (TauT/SLC6A6). Chronic beta-alanine loading can reduce intracellular taurine by 15–20% via competitive inhibition.",
+        evidence_tier="🟡",
+        recommendation="If stacking long-term, supplement taurine 1–2g/d to offset depletion. Separate doses by 2+ hours.",
+        sources=["Harris et al. 2006 Amino Acids", "Blancquaert et al. 2017 Med Sci Sports Exerc"],
+    ),
+    Interaction(
+        compound_a="zinc", compound_b="copper",
+        severity="caution",
+        mechanism="Chronic zinc >40mg/d induces metallothionein in enterocytes which sequesters copper, causing secondary copper deficiency (sideroblastic anemia, neutropenia).",
+        evidence_tier="🟢",
+        recommendation="If supplementing zinc >30mg/d for >8 weeks, add 1–2mg copper daily. Monitor ceruloplasmin if symptomatic.",
+        sources=["Prasad et al. 1978 JAMA", "IOM Dietary Reference Intakes for Zinc"],
+    ),
+    Interaction(
+        compound_a="melatonin", compound_b="benzodiazepines",
+        severity="caution",
+        mechanism="Additive sedation via overlapping GABAergic and MT1/MT2 mechanisms. May cause excessive drowsiness, impaired coordination.",
+        evidence_tier="🟡",
+        recommendation="Do not combine without medical supervision. If used together, reduce melatonin to 0.3–0.5mg.",
+        sources=["Garfinkel et al. 1999 Lancet"],
+    ),
+    Interaction(
+        compound_a="tyrosine", compound_b="levodopa",
+        severity="caution",
+        mechanism="Compete for the same amino acid transporter (LAT1) across the blood-brain barrier. Tyrosine can reduce levodopa brain uptake.",
+        evidence_tier="🟡",
+        recommendation="Separate by 2+ hours. Patients on levodopa should not supplement tyrosine without neurologist guidance.",
+        sources=["Growdon et al. 1982 Life Sci"],
+    ),
+    Interaction(
+        compound_a="l-carnitine", compound_b="thyroid hormone",
+        severity="caution",
+        mechanism="L-carnitine inhibits thyroid hormone entry into the cell nucleus, potentially reducing T3/T4 action. Therapeutic in hyperthyroidism but problematic in hypothyroidism.",
+        evidence_tier="🟡",
+        recommendation="Hypothyroid patients on levothyroxine should monitor TSH if starting carnitine. May need dose adjustment.",
+        sources=["Benvenga et al. 2004 Ann NY Acad Sci"],
+    ),
+    Interaction(
+        compound_a="l-carnitine", compound_b="creatine",
+        severity="synergistic",
+        mechanism="Carnitine enhances fat oxidation (sparing glycogen); creatine enhances PCr resynthesis. Complementary energy system support at different intensities.",
+        evidence_tier="🟠",
+        recommendation="Safe to combine. Both require chronic loading. Take carnitine with carb meal, creatine any time.",
+        sources=["Theoretical; no direct RCT on combination"],
+    ),
 ]
 
 # Build lookup index for fast searching
