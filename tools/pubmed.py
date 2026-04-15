@@ -54,28 +54,32 @@ class PubMedClient:
     def __init__(self):
         self.api_key = NCBI_API_KEY
 
-    def _get(self, url: str) -> dict | str:
+    def _get(self, url: str, max_retries: int = 2) -> dict | str:
         global _last_request
-        # Rate limiting
-        elapsed = time.time() - _last_request
-        if elapsed < REQUEST_DELAY:
-            time.sleep(REQUEST_DELAY - elapsed)
 
         if self.api_key:
             sep = "&" if "?" in url else "?"
             url = f"{url}{sep}api_key={self.api_key}"
 
-        try:
-            with urllib.request.urlopen(url, timeout=10) as r:
-                _last_request = time.time()
-                content = r.read().decode("utf-8")
-                # Try JSON parse
-                try:
-                    return json.loads(content)
-                except json.JSONDecodeError:
-                    return content
-        except Exception as e:
-            return {"error": str(e)}
+        for attempt in range(max_retries + 1):
+            elapsed = time.time() - _last_request
+            if elapsed < REQUEST_DELAY:
+                time.sleep(REQUEST_DELAY - elapsed)
+
+            try:
+                with urllib.request.urlopen(url, timeout=15) as r:
+                    _last_request = time.time()
+                    content = r.read().decode("utf-8")
+                    try:
+                        return json.loads(content)
+                    except json.JSONDecodeError:
+                        return content
+            except Exception as e:
+                if attempt < max_retries:
+                    backoff = (attempt + 1) * 1.0
+                    time.sleep(backoff)
+                    continue
+                return {"error": str(e)}
 
     def search(self, query: str, max_results: int = 10, years_back: int = 10) -> list[str]:
         """

@@ -17,6 +17,18 @@ PROFILE_PATH = Path.home() / ".kiwi" / "profile.json"
 Sex = Literal["male", "female", "other"]
 ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active"]
 
+VALID_SEX = {"male", "female", "other"}
+VALID_ACTIVITY_LEVEL = {"sedentary", "light", "moderate", "active", "very_active"}
+VALID_TRAINING_STATUS = {"novice", "intermediate", "advanced", "elite"}
+VALID_PRIMARY_GOAL = {"performance", "body_composition", "health", "longevity", "rehabilitation"}
+
+FIELD_RANGES = {
+    "age": (10, 120),
+    "weight_kg": (20.0, 300.0),
+    "height_cm": (100.0, 250.0),
+    "body_fat_pct": (2.0, 60.0),
+}
+
 
 class UserProfile:
     """Persistent user profile for personalized Kiwi responses."""
@@ -30,9 +42,9 @@ class UserProfile:
         "body_fat_pct": float,
         "sport": str,
         "position": str,
-        "training_status": str,   # novice, intermediate, advanced, elite
+        "training_status": str,
         "activity_level": str,
-        "primary_goal": str,      # performance, body_composition, health, longevity
+        "primary_goal": str,
         "dietary_restrictions": list,
         "known_deficiencies": list,
         "current_supplements": list,
@@ -54,8 +66,8 @@ class UserProfile:
         PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
         PROFILE_PATH.write_text(json.dumps(self.data, indent=2))
 
-    def set(self, key: str, value: Any) -> bool:
-        """Set a profile field. Returns False if field is unknown."""
+    def set(self, key: str, value: Any) -> bool | str:
+        """Set a profile field. Returns True on success, error string on validation failure, False if unknown field."""
         if key not in self.FIELDS:
             return False
         expected_type = self.FIELDS[key]
@@ -65,7 +77,30 @@ class UserProfile:
             elif expected_type != list:
                 value = expected_type(value)
         except (ValueError, TypeError):
-            return False
+            return f"Invalid value for {key}: expected {expected_type.__name__}"
+
+        # Enum validation
+        if key == "sex":
+            normalized = str(value).lower().strip()
+            if normalized in ("m", "male"):
+                value = "male"
+            elif normalized in ("f", "female"):
+                value = "female"
+            elif normalized not in VALID_SEX:
+                return f"Invalid sex: must be male, female, or other"
+        if key == "activity_level" and value not in VALID_ACTIVITY_LEVEL:
+            return f"Invalid activity_level: must be one of {', '.join(sorted(VALID_ACTIVITY_LEVEL))}"
+        if key == "training_status" and value not in VALID_TRAINING_STATUS:
+            return f"Invalid training_status: must be one of {', '.join(sorted(VALID_TRAINING_STATUS))}"
+        if key == "primary_goal" and value not in VALID_PRIMARY_GOAL:
+            return f"Invalid primary_goal: must be one of {', '.join(sorted(VALID_PRIMARY_GOAL))}"
+
+        # Range validation
+        if key in FIELD_RANGES:
+            lo, hi = FIELD_RANGES[key]
+            if not (lo <= float(value) <= hi):
+                return f"Invalid {key}: must be between {lo} and {hi}"
+
         self.data[key] = value
         self.save()
         return True

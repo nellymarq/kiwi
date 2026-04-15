@@ -29,12 +29,17 @@ class BaseAgent(ABC):
         """Agent system prompt."""
         ...
 
+    @property
+    def max_tokens(self) -> int:
+        """Max tokens for this agent's response. Override in subclasses."""
+        return 4096
+
     async def run(self, context: dict[str, Any]) -> str:
         """Execute this agent with the given context. Returns text output."""
         messages = self._build_messages(context)
         response = await self.client.messages.create(
             model=AGENT_MODEL,
-            max_tokens=4096,
+            max_tokens=self.max_tokens,
             thinking={"type": "adaptive"},
             system=self.system_prompt,
             messages=messages,

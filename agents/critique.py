@@ -13,7 +13,6 @@ no favoritism, just honest evaluation of what the evidence actually shows.
 import json
 import re
 from typing import Any
-import anthropic
 from .base import BaseAgent, AGENT_MODEL, REFINEMENT_THRESHOLD
 
 CRITIQUE_PROMPT = """\
@@ -123,45 +122,47 @@ class CritiqueAgent(BaseAgent):
         """
         Run the Ralph Wiggum critique loop.
         Returns (critique_data dict, composite score float).
+        Retries once on parse failure. Falls back to score=0.5 (not 1.0)
+        to trigger refinement rather than silently passing bad research.
         """
-        response = await self.client.messages.create(
-            model=AGENT_MODEL,
-            max_tokens=1500,
-            system=self.system_prompt,
-            messages=self._build_messages({
-                "query": query,
-                "response_text": response_text,
-            }),
-        )
+        messages = self._build_messages({
+            "query": query,
+            "response_text": response_text,
+        })
 
-        critique_text = next(
-            (b.text for b in response.content if hasattr(b, "text")), "{}"
-        )
+        for attempt in range(2):
+            response = await self.client.messages.create(
+                model=AGENT_MODEL,
+                max_tokens=3000,
+                system=self.system_prompt,
+                messages=messages,
+            )
 
-        default = {
-            "score": 1.0,
+            critique_text = next(
+                (b.text for b in response.content if hasattr(b, "text")), "{}"
+            )
+
+            try:
+                m = re.search(r"\{.*\}", critique_text, re.DOTALL)
+                if m:
+                    parsed = json.loads(m.group())
+                    score = float(parsed.get("score", 0.5))
+                    dim_scores = parsed.get("dimension_scores", {})
+                    any_low_dim = any(float(v) < 0.50 for v in dim_scores.values())
+                    if score < REFINEMENT_THRESHOLD or any_low_dim:
+                        parsed["needs_refinement"] = True
+                    return parsed, score
+            except (json.JSONDecodeError, AttributeError, ValueError):
+                if attempt == 0:
+                    continue
+
+        fallback = {
+            "score": 0.5,
             "dimension_scores": {},
-            "critical_issues": [],
+            "critical_issues": ["Critique parse failed — flagging for manual review"],
             "minor_issues": [],
             "strengths": [],
-            "needs_refinement": False,
-            "refinement_priority": None,
+            "needs_refinement": True,
+            "refinement_priority": "evidence_grounding",
         }
-
-        try:
-            m = re.search(r"\{.*\}", critique_text, re.DOTALL)
-            if m:
-                parsed = json.loads(m.group())
-                default.update(parsed)
-        except (json.JSONDecodeError, AttributeError):
-            pass
-
-        score = float(default.get("score", 1.0))
-
-        # Double-check needs_refinement logic
-        dim_scores = default.get("dimension_scores", {})
-        any_low_dim = any(float(v) < 0.50 for v in dim_scores.values())
-        if score < REFINEMENT_THRESHOLD or any_low_dim:
-            default["needs_refinement"] = True
-
-        return default, score
+        return fallback, 0.5
