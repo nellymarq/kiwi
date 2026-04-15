@@ -282,19 +282,24 @@ def classify_chronotype(meq_score: Optional[int] = None, bedtime_wfree: Optional
     elif bedtime_wfree is not None:
         try:
             h, m = map(int, bedtime_wfree.split(":"))
-            # MSFsc proxy: late bedtime (after midnight) → wolf, early → lion
-            minutes_past_midnight = h * 60 + m if h < 12 else (h - 24) * 60 + m
-            # Free-day midpoint typically bedtime + 4h
-            if minutes_past_midnight < -30:       # Before 11:30pm
-                chronotype = "lion"
-            elif minutes_past_midnight <= 60:     # 11:30pm–1am (inclusive)
-                chronotype = "bear"
-            elif minutes_past_midnight <= 150:    # 1am–2:30am
-                chronotype = "wolf"
+            if not (0 <= h <= 23 and 0 <= m <= 59):
+                return {"error": "Invalid time format. Use HH:MM (e.g., 23:30)"}
+            # Convert to minutes offset from midnight (negative = before midnight)
+            # 23:00 → -60, 23:30 → -30, 00:00 → 0, 01:00 → 60, 02:30 → 150
+            if h >= 18:
+                minutes_from_midnight = (h - 24) * 60 + m
+            elif h <= 5:
+                minutes_from_midnight = h * 60 + m
             else:
+                return {"error": f"Bedtime of {bedtime_wfree} is outside expected range (18:00–05:00)"}
+            if minutes_from_midnight < -30:       # Before 11:30pm
+                chronotype = "lion"
+            elif minutes_from_midnight <= 60:     # 11:30pm–1:00am
+                chronotype = "bear"
+            else:                                 # After 1:00am
                 chronotype = "wolf"
-        except Exception:
-            chronotype = "bear"
+        except (ValueError, AttributeError):
+            return {"error": "Invalid time format. Use HH:MM (e.g., 23:30)"}
 
     else:
         return {"error": "Provide meq_score (16-86) or bedtime_wfree ('23:30' format)"}

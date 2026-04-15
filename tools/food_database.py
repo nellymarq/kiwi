@@ -145,13 +145,25 @@ class FoodNutrients:
 
 
 class FDCClient:
-    """USDA FoodData Central API client with caching and rate limiting."""
+    """USDA FoodData Central API client with bounded LRU cache and rate limiting."""
+
+    MAX_CACHE_SIZE = 200
 
     def __init__(self, api_key: str = FDC_API_KEY):
         self.api_key = api_key
-        self._cache: dict[str, list] = {}
+        self._cache: dict[str, tuple[float, any]] = {}
         self._last_request = 0.0
-        self._min_interval = 0.5  # 500ms between requests (respectful rate limiting)
+        self._min_interval = 0.5
+
+    def _cache_get(self, key: str):
+        entry = self._cache.get(key)
+        return entry[1] if entry else None
+
+    def _cache_set(self, key: str, value):
+        if len(self._cache) >= self.MAX_CACHE_SIZE:
+            oldest = min(self._cache, key=lambda k: self._cache[k][0])
+            del self._cache[oldest]
+        self._cache[key] = (time.time(), value)
 
     def _throttle(self):
         elapsed = time.time() - self._last_request
@@ -171,8 +183,9 @@ class FDCClient:
         Returns raw search result items.
         """
         cache_key = f"search:{query}:{max_results}"
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+        cached = self._cache_get(cache_key)
+        if cached is not None:
+            return cached
 
         self._throttle()
         params: dict = {
@@ -184,13 +197,19 @@ class FDCClient:
             params["dataType"] = ",".join(data_types)
 
         try:
-            with httpx.Client(timeout=10) as client:
+            with httpx.Client(timeout=15) as client:
                 response = client.get(f"{FDC_BASE}/foods/search", params=params)
                 response.raise_for_status()
                 data = response.json()
                 items = data.get("foods", [])
-                self._cache[cache_key] = items
+                self._cache_set(cache_key, items)
                 return items
+        except httpx.TimeoutException:
+            return []
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                time.sleep(2)
+            return []
         except httpx.HTTPError:
             return []
 
@@ -205,19 +224,25 @@ class FDCClient:
         Returns FoodNutrients scaled to serving_g (default 100g).
         """
         cache_key = f"food:{fdc_id}"
-        raw = self._cache.get(cache_key)
+        raw = self._cache_get(cache_key)
 
         if not raw:
             self._throttle()
             try:
-                with httpx.Client(timeout=10) as client:
+                with httpx.Client(timeout=15) as client:
                     response = client.get(
                         f"{FDC_BASE}/food/{fdc_id}",
                         params={"api_key": self.api_key},
                     )
                     response.raise_for_status()
                     raw = response.json()
-                    self._cache[cache_key] = raw
+                    self._cache_set(cache_key, raw)
+            except httpx.TimeoutException:
+                return None
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    time.sleep(2)
+                return None
             except httpx.HTTPError:
                 return None
 

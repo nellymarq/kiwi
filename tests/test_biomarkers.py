@@ -121,8 +121,14 @@ def test_normal_testosterone_male():
     assert result.status == "NORMAL"
 
 
-def test_high_testosterone_male():
+def test_high_testosterone_male_athletic_norm():
     result = interpreter.interpret("testosterone_male", 1200.0)
+    assert result is not None
+    assert result.status == "ATHLETIC_NORM"
+
+
+def test_high_testosterone_male_truly_high():
+    result = interpreter.interpret("testosterone_male", 1300.0)
     assert result is not None
     assert result.status == "HIGH"
 

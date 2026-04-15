@@ -217,8 +217,7 @@ def test_fdcclient_throttle_enforced():
 def test_search_cache_key():
     """Cache keys for search must include query and page size."""
     client = FDCClient()
-    # Pre-populate cache
-    client._cache["search:chicken:5"] = [{"fdcId": 123, "dataType": "Foundation"}]
+    client._cache_set("search:chicken:5", [{"fdcId": 123, "dataType": "Foundation"}])
     results = client.search("chicken", max_results=5)
     assert results == [{"fdcId": 123, "dataType": "Foundation"}]
 
@@ -226,8 +225,7 @@ def test_search_cache_key():
 def test_get_food_cache_key():
     """Cache keys for food must include fdc_id."""
     client = FDCClient()
-    # Pre-populate cache with minimal raw food data
-    client._cache["food:999"] = {
+    client._cache_set("food:999", {
         "description": "Cached Food",
         "brandOwner": "TestBrand",
         "dataType": "Foundation",
@@ -235,7 +233,7 @@ def test_get_food_cache_key():
             {"nutrient": {"id": 1008}, "amount": 200.0},   # Energy
             {"nutrient": {"id": 1003}, "amount": 25.0},    # Protein
         ],
-    }
+    })
     food = client.get_food(999, serving_g=100.0)
     assert food is not None
     assert food.description == "Cached Food"
@@ -246,14 +244,14 @@ def test_get_food_cache_key():
 def test_get_food_scales_correctly_via_cache():
     """get_food with serving_g should scale nutrients."""
     client = FDCClient()
-    client._cache["food:888"] = {
+    client._cache_set("food:888", {
         "description": "Scale Test Food",
         "brandOwner": "",
         "dataType": "SR Legacy",
         "foodNutrients": [
             {"nutrient": {"id": 1003}, "amount": 20.0},  # 20g protein per 100g
         ],
-    }
+    })
     food = client.get_food(888, serving_g=200.0)
     assert food is not None
     assert food.get("Protein (g)") == pytest.approx(40.0, rel=0.01)
@@ -263,14 +261,14 @@ def test_get_food_scales_correctly_via_cache():
 def test_get_food_100g_no_scaling():
     """get_food at 100g should not scale (returns raw values)."""
     client = FDCClient()
-    client._cache["food:777"] = {
+    client._cache_set("food:777", {
         "description": "No Scale",
         "brandOwner": "",
         "dataType": "Foundation",
         "foodNutrients": [
             {"nutrient": {"id": 1003}, "amount": 30.0},  # 30g protein
         ],
-    }
+    })
     food = client.get_food(777, serving_g=100.0)
     assert food is not None
     assert food.get("Protein (g)") == pytest.approx(30.0)
@@ -280,7 +278,7 @@ def test_get_food_100g_no_scaling():
 def test_get_food_includes_aminos_via_cache():
     """include_aminos=True should populate amino_acids dict."""
     client = FDCClient()
-    client._cache["food:666"] = {
+    client._cache_set("food:666", {
         "description": "Amino Test",
         "brandOwner": "",
         "dataType": "Foundation",
@@ -289,7 +287,7 @@ def test_get_food_includes_aminos_via_cache():
             {"nutrient": {"id": 1213}, "amount": 2.1},    # Leucine
             {"nutrient": {"id": 1214}, "amount": 1.8},    # Lysine
         ],
-    }
+    })
     food = client.get_food(666, serving_g=100.0, include_aminos=True)
     assert food is not None
     assert food.amino_acids.get("Leucine (g)") == pytest.approx(2.1)
@@ -299,7 +297,7 @@ def test_get_food_includes_aminos_via_cache():
 def test_get_food_null_amount_handled():
     """Null nutrient amounts (None) should default to 0.0 without crashing."""
     client = FDCClient()
-    client._cache["food:555"] = {
+    client._cache_set("food:555", {
         "description": "Null Amount Test",
         "brandOwner": "",
         "dataType": "Foundation",
@@ -307,7 +305,7 @@ def test_get_food_null_amount_handled():
             {"nutrient": {"id": 1008}, "amount": None},   # None should → 0.0
             {"nutrient": {"id": 1003}, "amount": 10.0},
         ],
-    }
+    })
     food = client.get_food(555, serving_g=100.0)
     assert food is not None
     assert food.get("Energy (kcal)") == 0.0
@@ -320,19 +318,19 @@ def test_search_and_get_prefers_foundation():
     """search_and_get must prefer Foundation over SR Legacy over branded."""
     client = FDCClient()
     # Simulate search results with mixed data types
-    client._cache["search:testfood:10"] = [
+    client._cache_set("search:testfood:10", [
         {"fdcId": 1, "dataType": "Branded Food"},
         {"fdcId": 2, "dataType": "SR Legacy"},
         {"fdcId": 3, "dataType": "Foundation"},
-    ]
+    ])
     # Pre-populate food data for each
     for fdc_id in [1, 2, 3]:
-        client._cache[f"food:{fdc_id}"] = {
+        client._cache_set(f"food:{fdc_id}", {
             "description": f"Food {fdc_id}",
             "brandOwner": "",
             "dataType": ["Branded Food", "SR Legacy", "Foundation"][fdc_id - 1],
             "foodNutrients": [],
-        }
+        })
     food = client.search_and_get("testfood")
     assert food is not None
     assert food.description == "Food 3"  # Foundation preferred
@@ -341,17 +339,17 @@ def test_search_and_get_prefers_foundation():
 def test_search_and_get_falls_back_to_sr_legacy():
     """Without Foundation, should pick SR Legacy."""
     client = FDCClient()
-    client._cache["search:srtest:10"] = [
+    client._cache_set("search:srtest:10", [
         {"fdcId": 10, "dataType": "Branded Food"},
         {"fdcId": 11, "dataType": "SR Legacy"},
-    ]
+    ])
     for fdc_id, dt in [(10, "Branded Food"), (11, "SR Legacy")]:
-        client._cache[f"food:{fdc_id}"] = {
+        client._cache_set(f"food:{fdc_id}", {
             "description": f"Food {fdc_id}",
             "brandOwner": "",
             "dataType": dt,
             "foodNutrients": [],
-        }
+        })
     food = client.search_and_get("srtest")
     assert food is not None
     assert food.description == "Food 11"
@@ -360,7 +358,7 @@ def test_search_and_get_falls_back_to_sr_legacy():
 def test_search_and_get_no_results_returns_none():
     """If search returns empty, search_and_get should return None."""
     client = FDCClient()
-    client._cache["search:emptyquery:10"] = []
+    client._cache_set("search:emptyquery:10", [])
     result = client.search_and_get("emptyquery")
     assert result is None
 
@@ -377,10 +375,10 @@ def test_compare_foods_table_structure():
     ]:
         # compare_foods calls search_and_get(q) -> search(q, max_results=10)
         # cache key = f"search:{query}:{max_results}" = f"search:{name}:10"
-        client._cache[f"search:{name}:10"] = [
+        client._cache_set(f"search:{name}:10", [
             {"fdcId": fdc_id, "dataType": "Foundation"}
-        ]
-        client._cache[f"food:{fdc_id}"] = {
+        ])
+        client._cache_set(f"food:{fdc_id}", {
             "description": name,
             "brandOwner": "",
             "dataType": "Foundation",
@@ -391,7 +389,7 @@ def test_compare_foods_table_structure():
                 {"nutrient": {"id": 1005}, "amount": 10.0},
                 {"nutrient": {"id": 1079}, "amount": 1.0},
             ],
-        }
+        })
 
     result = client.compare_foods(["Food Alpha", "Food Beta"])
     assert "Food Alpha" in result or "Food Alp" in result  # may truncate
@@ -403,7 +401,7 @@ def test_compare_foods_table_structure():
 def test_compare_foods_no_results():
     """compare_foods with all unknown foods returns 'No foods found.'"""
     client = FDCClient()
-    client._cache["search:xyznotfood:10"] = []
-    client._cache["search:abcnotfood:10"] = []
+    client._cache_set("search:xyznotfood:10", [])
+    client._cache_set("search:abcnotfood:10", [])
     result = client.compare_foods(["xyznotfood", "abcnotfood"])
     assert "No foods found" in result
