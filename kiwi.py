@@ -118,6 +118,11 @@ from tools.mental_performance import (
 from memory.store import KiwiMemory
 from memory.profile import UserProfile
 from memory import client_manager
+from memory.preferences import PreferencesStore
+from tools.pdf_export import generate_client_report, BrandConfig
+from agents.recommender import RecommenderAgent
+from tools.supplements import resolve_supplement, SUPPLEMENT_DB
+from tools.interactions import lookup_interactions
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -297,6 +302,8 @@ class Kiwi:
         self.active_client_name = client_manager.get_active_client()
         self.memory = KiwiMemory(client=self.active_client_name)
         self.profile = UserProfile(client=self.active_client_name)
+        self.preferences = PreferencesStore(client=self.active_client_name)
+        self.recommender_agent = RecommenderAgent(self.client)
         self.pubmed = PubMedClient() if use_pubmed else None
         self.openalex = OpenAlexClient() if use_pubmed else None
         self.trials = ClinicalTrialsClient() if use_pubmed else None
@@ -606,7 +613,8 @@ class Kiwi:
                     help_text = (
                         "[bold]Research:[/bold]  Just type a question · /protocol <query> · /plan <query>\n"
                         "[bold]Literature:[/bold] /pubmed · /openalex · /trials · /tldr · /fulltext <doi> · /citedby <doi>\n"
-                        "[bold]Deep Research:[/bold] /synthesize <claim> · /n_of_1 <question> · /grade <tier> · /quality <tool>\n"
+                        "[bold]Deep Research:[/bold] /synthesize <claim> · /n_of_1 <q> · /grade · /quality · /recommend <finding>\n"
+                        "[bold]Delivery:[/bold]  /pdf · /accepted [note] · /rejected [reason] · /preferences\n"
                         "[bold]Clients:[/bold]    /clients · /new_client <name> · /switch_client <name> · /delete_client <name>\n"
                         "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords> · /stale\n"
                         "[bold]Threads:[/bold]  /thread new|use|list <name>\n"
@@ -676,6 +684,7 @@ class Kiwi:
                         self.active_client_name = client_manager.get_active_client()
                         self.memory = KiwiMemory(client=self.active_client_name)
                         self.profile = UserProfile(client=self.active_client_name)
+                        self.preferences = PreferencesStore(client=self.active_client_name)
                         self.messages = []
                         console.print(f"[dim]  Switched to client: [cyan]{self.active_client_name}[/cyan][/dim]")
                     else:
@@ -953,6 +962,120 @@ class Kiwi:
                             "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
                         })
                         console.print(result)
+
+                elif q_lower == "/pdf" or q_lower.startswith("/pdf "):
+                    if not last_response:
+                        console.print("[dim]  No research session to export yet.[/dim]")
+                    else:
+                        practitioner = self.profile.get("name") or ""
+                        brand = BrandConfig(practitioner=practitioner)
+                        grade_level = ""
+                        score_val = last_score or 0.0
+                        if score_val >= 0.85:
+                            grade_level = "HIGH"
+                        elif score_val >= 0.72:
+                            grade_level = "MODERATE"
+                        elif score_val >= 0.50:
+                            grade_level = "LOW"
+                        else:
+                            grade_level = "VERY LOW"
+                        try:
+                            pdf_path = generate_client_report(
+                                query=last_query,
+                                response=last_response,
+                                score=score_val,
+                                critique_data=last_critique or {},
+                                brand=brand,
+                                client_name=self.active_client_name,
+                                grade_level=grade_level,
+                                thread_name=self.active_thread,
+                            )
+                            console.print(f"[dim]  PDF exported to: [cyan]{pdf_path}[/cyan][/dim]")
+                        except Exception as e:
+                            console.print(f"[dim red]  PDF export failed: {e}[/dim red]")
+
+                elif q_lower.startswith("/recommend "):
+                    finding = query[11:].strip()
+                    if finding:
+                        console.print(f"[dim]  Chaining tools for finding: '{finding}'...[/dim]")
+                        profile_summary = self.profile.to_summary() if self.profile.is_complete() else ""
+                        current_supps = self.profile.get("current_supplements") or []
+
+                        # Quick string-match scan of supplement DB
+                        supp_options_parts = []
+                        keywords = [w.lower() for w in finding.split() if len(w) > 3]
+                        for key, proto in SUPPLEMENT_DB.items():
+                            text_blob = (
+                                proto.name + " " + proto.mechanism + " "
+                                + " ".join(proto.sport_specific_notes.values())
+                            ).lower()
+                            if any(kw in text_blob for kw in keywords):
+                                supp_options_parts.append(
+                                    f"• {proto.name} — {proto.maintenance_dose} — "
+                                    f"Evidence: {proto.evidence}"
+                                )
+                        supp_options = "\n".join(supp_options_parts[:10]) or "(no direct matches in DB)"
+
+                        # Interaction check if current stack is known
+                        interaction_text = ""
+                        if current_supps:
+                            all_compounds = current_supps + [
+                                p.name for key, p in SUPPLEMENT_DB.items()
+                                if any(kw in p.name.lower() for kw in keywords)
+                            ][:5]
+                            if len(all_compounds) > 1:
+                                interactions = lookup_interactions(all_compounds, min_severity="safe")
+                                if interactions:
+                                    interaction_text = "\n".join(
+                                        f"• {i.compound_a} + {i.compound_b}: {i.severity} — {i.recommendation[:150]}"
+                                        for i in interactions[:10]
+                                    )
+                                else:
+                                    interaction_text = "No significant interactions detected with current stack."
+                            else:
+                                interaction_text = "Current stack has too few items to cross-check."
+                        else:
+                            interaction_text = "No current supplement stack on file."
+
+                        # Invoke recommender agent
+                        console.print("[dim]  Synthesizing integrated recommendation...[/dim]\n")
+                        result = await self.recommender_agent.run({
+                            "finding": finding,
+                            "profile_summary": profile_summary,
+                            "biomarker_interpretation": "",
+                            "supplement_options": supp_options,
+                            "interaction_check": interaction_text,
+                        })
+                        console.print(result)
+
+                elif q_lower.startswith("/accepted"):
+                    payload = query[9:].strip() if len(query) > 9 else ""
+                    rec_text = last_response[:500] if last_response else ""
+                    if not rec_text:
+                        console.print("[dim]  No recent recommendation to mark accepted.[/dim]")
+                    else:
+                        self.preferences.record_accepted(rec_text, note=payload)
+                        console.print(f"[dim]  Recorded as accepted. Total: {self.preferences.stats()['total_accepted']}[/dim]")
+
+                elif q_lower.startswith("/rejected"):
+                    payload = query[9:].strip() if len(query) > 9 else ""
+                    rec_text = last_response[:500] if last_response else ""
+                    if not rec_text:
+                        console.print("[dim]  No recent recommendation to mark rejected.[/dim]")
+                    else:
+                        self.preferences.record_rejected(rec_text, reason=payload)
+                        console.print(f"[dim]  Recorded as rejected. Total: {self.preferences.stats()['total_rejected']}[/dim]")
+
+                elif q_lower == "/preferences":
+                    stats = self.preferences.stats()
+                    block = self.preferences.to_context_block()
+                    console.print(Panel(
+                        f"Accepted: {stats['total_accepted']}  ·  Rejected: {stats['total_rejected']}\n\n"
+                        + (block or "[dim]No preferences recorded yet.[/dim]"),
+                        title="[cyan]Recommendation Preferences[/cyan]",
+                        border_style="cyan",
+                        box=box.SIMPLE,
+                    ))
 
                 elif q_lower.startswith("/quality"):
                     tool = query[8:].strip() if len(query) > 8 else ""

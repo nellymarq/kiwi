@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - Launch: `python3 kiwi.py`
-- Tests: `python3 -m pytest tests/ -x -q` (967 tests)
+- Tests: `python3 -m pytest tests/ -x -q` (988 tests)
 - GitHub: `nellymarq/kiwi`
 - Always run tests before committing code changes.
 
@@ -29,6 +29,9 @@ All deduplicated by DOI, merged into a single context block for Claude.
 ## Research Methodology
 - **GRADE evidence grading** — formal certainty assessment (HIGH/MODERATE/LOW/VERY LOW) with explicit justification
 - **Methodology quality tools** — RoB 2 (RCTs), ROBINS-I (observational), AMSTAR 2 (systematic reviews)
+- **Cross-tool recommender** — chains biomarker interpretation → supplement options → interaction check → protocol
+- **Preference learning** — accepted/rejected recommendations feed into future critique context
+- **Branded PDF export** — client-facing research reports with GRADE badges and practitioner attribution
 - **Ralph Wiggum Loop** — 5-dimension critique (grounding, hierarchy, mechanism, logic, uncertainty)
 - **Evidence Synthesis Agent** — structured multi-paper review with consensus/contradiction analysis
 - **N-of-1 Protocol Designer** — rigorous single-subject experimental design
