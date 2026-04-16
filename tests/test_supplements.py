@@ -25,6 +25,7 @@ EXPECTED_SUPPLEMENTS = [
     "omega_3", "magnesium", "hmb", "ashwagandha", "iron",
     "citrulline", "taurine", "tyrosine", "melatonin", "zinc", "l_carnitine",
     "glycerol", "collagen", "sodium_bicarbonate",
+    "vitamin_c", "vitamin_b12", "folate", "probiotics", "curcumin", "quercetin",
 ]
 
 

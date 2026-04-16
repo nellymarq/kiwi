@@ -43,6 +43,7 @@ from agents.orchestrator import KiwiOrchestrator
 from agents.base import REFINEMENT_THRESHOLD
 from tools.pubmed import PubMedClient
 from tools.openalex import OpenAlexClient, SPORTS_NUTRITION_JOURNALS
+from tools.clinical_trials import ClinicalTrialsClient
 from tools.calculations import SportsCalc
 from tools.exporter import ResearchExporter
 from tools.interactions import lookup_interactions, lookup_single, format_interaction_report, has_novel_compounds, analyze_novel_interactions
@@ -259,6 +260,7 @@ class Kiwi:
         self.profile = UserProfile()
         self.pubmed = PubMedClient() if use_pubmed else None
         self.openalex = OpenAlexClient() if use_pubmed else None
+        self.trials = ClinicalTrialsClient() if use_pubmed else None
         self.exporter = ResearchExporter()
         self.calc = SportsCalc()
         self.fdc = FDCClient()
@@ -555,7 +557,7 @@ class Kiwi:
                 if q_lower in ("/help", "/commands"):
                     help_text = (
                         "[bold]Research:[/bold]  Just type a question · /protocol <query> · /plan <query>\n"
-                        "[bold]PubMed:[/bold]   /pubmed <query> · /openalex <query>\n"
+                        "[bold]Literature:[/bold] /pubmed <q> · /openalex <q> · /trials <q> · /citedby <doi>\n"
                         "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords> · /stale\n"
                         "[bold]Threads:[/bold]  /thread new|use|list <name>\n"
                         "[bold]Profile:[/bold]  /profile · /profile set <field> <value>\n"
@@ -782,6 +784,45 @@ class Kiwi:
                             console.print("[dim]  No results found.[/dim]")
                     elif not self.pubmed:
                         console.print("[dim]  PubMed disabled (run without --no-pubmed).[/dim]")
+
+                elif q_lower.startswith("/trials "):
+                    search_query = query[8:].strip()
+                    if search_query and self.trials:
+                        with console.status("[dim cyan]  Searching ClinicalTrials.gov...[/dim cyan]", spinner="earth"):
+                            results = self.trials.search(search_query, max_results=8)
+                        if results:
+                            for i, t in enumerate(results, 1):
+                                console.print(
+                                    f"\n[cyan][{i}][/cyan] [bold]{t.title}[/bold]\n"
+                                    f"[dim]{t.status} · Phase {t.phase} · N={t.enrollment} · {t.sponsor}[/dim]\n"
+                                    f"NCT: {t.nct_id}\n"
+                                    f"Conditions: {', '.join(t.conditions[:3])}\n"
+                                    f"Interventions: {', '.join(t.interventions[:3])}\n"
+                                    f"{t.brief_summary[:300]}..."
+                                )
+                        else:
+                            console.print("[dim]  No trials found.[/dim]")
+                    elif not self.trials:
+                        console.print("[dim]  ClinicalTrials disabled (run without --no-pubmed).[/dim]")
+
+                elif q_lower.startswith("/citedby "):
+                    doi = query[9:].strip()
+                    if doi and self.openalex:
+                        with console.status(f"[dim cyan]  Finding papers that cite {doi}...[/dim cyan]", spinner="earth"):
+                            works = self.openalex.fetch_cited_by(doi, max_results=10)
+                        if works:
+                            console.print(f"[dim]  Found {len(works)} papers citing {doi}[/dim]")
+                            for i, w in enumerate(works, 1):
+                                oa_tag = " [OA]" if w.open_access else ""
+                                console.print(
+                                    f"\n[cyan][{i}][/cyan] [bold]{w.title}[/bold]\n"
+                                    f"[dim]{', '.join(w.authors[:2])} ({w.year}) · {w.journal}{oa_tag}[/dim]\n"
+                                    f"DOI: {w.doi}  Cited: {w.cited_by_count}"
+                                )
+                        else:
+                            console.print("[dim]  No citations found (or DOI invalid).[/dim]")
+                    elif not self.openalex:
+                        console.print("[dim]  OpenAlex disabled (run without --no-pubmed).[/dim]")
 
                 elif q_lower.startswith("/openalex "):
                     search_query = query[10:].strip()

@@ -201,6 +201,73 @@ class OpenAlexClient:
             journal_issns=SPORTS_NUTRITION_ISSNS,
         )
 
+    def fetch_cited_by(self, doi: str, max_results: int = 10) -> list[OpenAlexWork]:
+        """Find papers that cite the given DOI (forward citations)."""
+        if not doi:
+            return []
+        doi_clean = doi.replace("https://doi.org/", "").lower()
+        url = (
+            f"{OPENALEX_BASE}/works"
+            f"?filter=cites:https://doi.org/{doi_clean}"
+            f"&per_page={max_results}"
+            f"&sort=cited_by_count:desc"
+        )
+        data = self._get(url)
+        if not data or "results" not in data:
+            return []
+        return self._parse_works(data["results"])
+
+    def fetch_references(self, doi: str, max_results: int = 10) -> list[OpenAlexWork]:
+        """Find papers cited by the given DOI (backward citations / references)."""
+        if not doi:
+            return []
+        doi_clean = doi.replace("https://doi.org/", "").lower()
+        url = f"{OPENALEX_BASE}/works/doi:{doi_clean}"
+        data = self._get(url)
+        if not data:
+            return []
+        refs = data.get("referenced_works", [])[:max_results]
+        if not refs:
+            return []
+        # Fetch each referenced work
+        works = []
+        for ref_id in refs:
+            ref_data = self._get(ref_id.replace("openalex.org", "api.openalex.org"))
+            if ref_data:
+                parsed = self._parse_works([ref_data])
+                if parsed:
+                    works.append(parsed[0])
+        return works
+
+    def _parse_works(self, items: list[dict]) -> list[OpenAlexWork]:
+        """Parse raw OpenAlex work objects into OpenAlexWork dataclass."""
+        works = []
+        for item in items:
+            authors = []
+            for authorship in item.get("authorships", [])[:5]:
+                name = authorship.get("author", {}).get("display_name", "")
+                if name:
+                    authors.append(name)
+            location = item.get("primary_location", {}) or {}
+            source = location.get("source", {}) or {}
+            journal_name = source.get("display_name", "")
+            doi_raw = item.get("doi", "") or ""
+            doi = doi_raw.replace("https://doi.org/", "") if doi_raw else ""
+            abstract = reconstruct_abstract(item.get("abstract_inverted_index"))
+            oa = item.get("open_access", {}) or {}
+            works.append(OpenAlexWork(
+                openalex_id=item.get("id", ""),
+                title=item.get("title", ""),
+                authors=authors,
+                journal=journal_name,
+                year=item.get("publication_year", 0),
+                abstract=abstract,
+                doi=doi,
+                cited_by_count=item.get("cited_by_count", 0),
+                open_access=oa.get("is_oa", False),
+            ))
+        return works
+
     def build_context_block(self, works: list[OpenAlexWork]) -> str:
         """Format works into a context block for Claude."""
         if not works:

@@ -328,6 +328,73 @@ INTERACTION_DB: list[Interaction] = [
         recommendation="May enhance hyperhydration in heat. 1.2g/kg glycerol + standard creatine loading. Experimental — limited RCT data on combination.",
         sources=["Easton et al. 2007 IJSN"],
     ),
+
+    # ── Drug-Supplement Interactions ────────────────────────────────────────
+
+    Interaction(
+        compound_a="statins", compound_b="coq10",
+        severity="caution",
+        mechanism="HMG-CoA reductase inhibition reduces mevalonate pathway output, including endogenous CoQ10 synthesis. Chronic statin therapy can reduce plasma CoQ10 by 30–50%.",
+        evidence_tier="🟡",
+        recommendation="Consider CoQ10 100–200mg/d (ubiquinol form preferred) if on statins, especially with myalgia complaints. Take with fatty meal.",
+        sources=["Qu et al. 2018 Med Sci Monit", "Banach et al. 2015 Mayo Clin Proc"],
+    ),
+    Interaction(
+        compound_a="metformin", compound_b="vitamin b12",
+        severity="caution",
+        mechanism="Metformin inhibits calcium-dependent B12 absorption in terminal ileum. Chronic use (>4 years, >1500mg/d) causes B12 deficiency in 10–30% of users.",
+        evidence_tier="🟢",
+        recommendation="Check serum B12 + methylmalonic acid annually. Supplement methylcobalamin 1000mcg/d if MMA elevated or B12 <400 pg/mL.",
+        sources=["de Jager et al. 2010 BMJ", "Reinstatler et al. 2012 Diabetes Care"],
+    ),
+    Interaction(
+        compound_a="ssri", compound_b="l-tryptophan",
+        severity="avoid",
+        mechanism="SSRIs increase synaptic serotonin; L-tryptophan is precursor to serotonin synthesis. Combination risks serotonin syndrome (tachycardia, hyperthermia, rigidity).",
+        evidence_tier="🟡",
+        recommendation="AVOID. Do not combine without psychiatric supervision. Same risk applies to 5-HTP, SAM-e.",
+        sources=["Boyer & Shannon 2005 NEJM"],
+    ),
+    Interaction(
+        compound_a="levothyroxine", compound_b="iron",
+        severity="caution",
+        mechanism="Iron forms insoluble complexes with levothyroxine in the GI tract, reducing thyroid hormone absorption by 30–50%.",
+        evidence_tier="🟢",
+        recommendation="Separate by minimum 4 hours. Take levothyroxine empty stomach in AM; iron with vitamin C later in day.",
+        sources=["Campbell et al. 1992 Ann Intern Med", "John-Kalarickal et al. 2007 Thyroid"],
+    ),
+    Interaction(
+        compound_a="proton pump inhibitors", compound_b="magnesium",
+        severity="caution",
+        mechanism="Chronic PPI use (>1 year) reduces intestinal absorption of magnesium via TRPM6/7 channel dysregulation, causing hypomagnesemia.",
+        evidence_tier="🟢",
+        recommendation="Check serum Mg every 6 months if on chronic PPI. Supplement magnesium glycinate 200–400mg/d; consider alternative acid suppression.",
+        sources=["FDA Drug Safety Communication 2011", "Cundy & Dissanayake 2008 Clin Endocrinol"],
+    ),
+    Interaction(
+        compound_a="beta-blockers", compound_b="caffeine",
+        severity="monitor",
+        mechanism="Beta-blockers antagonize beta-adrenergic response; caffeine acts via adenosine receptor blockade + catecholamine release. Net effect varies — reduced ergogenic benefit but also blunted side effects.",
+        evidence_tier="🟡",
+        recommendation="Expect reduced performance benefit from caffeine. Standard doses (3mg/kg) likely safe; avoid >6mg/kg with beta-blockers due to unpredictable BP response.",
+        sources=["Smith et al. 2018 Br J Clin Pharmacol"],
+    ),
+    Interaction(
+        compound_a="hormonal birth control", compound_b="vitamin b6",
+        severity="monitor",
+        mechanism="Estrogen in oral contraceptives depletes pyridoxal-5-phosphate (active B6) via increased tryptophan metabolism and altered B6 kinetics.",
+        evidence_tier="🟡",
+        recommendation="Consider B6 25–50mg/d (or B-complex) in athletes on hormonal contraception, especially if experiencing mood changes or PMS-like symptoms.",
+        sources=["Wilson et al. 2011 Am J Clin Nutr", "Villegas-Salas et al. 1997 Contraception"],
+    ),
+    Interaction(
+        compound_a="statins", compound_b="niacin",
+        severity="caution",
+        mechanism="Both affect lipid profile and liver function. Co-administration increases risk of myopathy, rhabdomyolysis, and hepatotoxicity, especially at high doses.",
+        evidence_tier="🟢",
+        recommendation="AIM-HIGH trial showed no added cardiovascular benefit from combination. Not recommended for routine use; monitor CK/AST/ALT if combined by physician.",
+        sources=["AIM-HIGH Investigators 2011 NEJM", "HPS2-THRIVE Collaborative Group 2014 NEJM"],
+    ),
 ]
 
 # Build lookup index for fast searching

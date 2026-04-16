@@ -622,6 +622,188 @@ SUPPLEMENT_DB: dict[str, DosingProtocol] = {
         ],
     ),
 
+    "vitamin_c": DosingProtocol(
+        name="Vitamin C (Ascorbic Acid)",
+        category="health",
+        loading_dose=None,
+        maintenance_dose="90–500mg/d (higher for immune support during heavy training: 500–1000mg/d)",
+        timing="With meals; split doses >500mg across the day for better absorption",
+        duration="Chronic; acute high-dose (1–2g) for cold prophylaxis during travel/competition",
+        best_forms=["Ascorbic acid (standard)", "Liposomal vitamin C (higher bioavailability)", "Buffered sodium/calcium ascorbate (gentler on GI)"],
+        absorption_enhancers=["Bioflavonoids (rose hips, citrus extract)", "Take with food"],
+        absorption_inhibitors=["Smoking (increases turnover 30–50%)"],
+        food_interaction="Take with meals; essential cofactor for iron absorption from plant sources",
+        onset_time="Plasma: 2–3h; tissue saturation: 1–2 weeks at 200mg/d",
+        washout="Water-soluble; excess excreted in urine within 24h",
+        ul_or_noael="UL: 2000mg/d (GI distress, oxalate stone risk above this)",
+        contraindications=["Hemochromatosis (increases iron absorption)", "Active kidney stones (oxalate risk)", "G6PD deficiency at high doses"],
+        sport_specific_notes={
+            "endurance": "Caution: high-dose vitamin C (>1g/d chronic) may blunt mitochondrial adaptation. Time around competition, not training.",
+            "strength": "Collagen synthesis cofactor — essential for tendon adaptation (pair with collagen pre-exercise)",
+            "combat_sports": "Useful for weight-cut immune support; acute dosing during dehydration phase",
+        },
+        evidence="🟢 Strong for scurvy prevention; 🟡 Moderate for immune support; 🟠 Weak for performance enhancement",
+        mechanism="Essential cofactor for prolyl hydroxylase (collagen synthesis), dopamine-β-hydroxylase (catecholamine synthesis), "
+                  "and carnitine biosynthesis. Antioxidant: recycles vitamin E, glutathione. Enhances non-heme iron absorption "
+                  "3-6x via reduction of Fe³⁺ → Fe²⁺. CAUTION: chronic supra-physiological doses may blunt exercise-induced "
+                  "hormesis (training adaptation) via excessive ROS quenching.",
+        key_references=[
+            "Peternelj & Coombes (2011) Sports Med — Antioxidant supplementation and exercise adaptation",
+            "Carr & Maggini (2017) Nutrients — Vitamin C and immune function",
+        ],
+    ),
+
+    "vitamin_b12": DosingProtocol(
+        name="Vitamin B12 (Cobalamin)",
+        category="health",
+        loading_dose="1000mcg/d × 4–8 weeks for deficiency correction",
+        maintenance_dose="2.4mcg/d RDA; 500–1000mcg/d for vegans/vegetarians; 1000mcg/d for athletes on metformin",
+        timing="Morning with breakfast (may be stimulating for some)",
+        duration="Chronic for vegetarians/vegans; periodic for omnivores",
+        best_forms=["Methylcobalamin (bioactive, preferred)", "Adenosylcobalamin (mitochondrial active)", "Cyanocobalamin (cheapest, needs conversion)", "Hydroxocobalamin (injection form, long-acting)"],
+        absorption_enhancers=["Intrinsic factor (naturally produced in stomach)", "Sublingual/injection bypasses intrinsic factor requirement"],
+        absorption_inhibitors=["Metformin (reduces absorption 10–30%)", "PPIs/H2 blockers (reduce acid needed for release from food)", "H. pylori infection", "Atrophic gastritis (common >50y)"],
+        food_interaction="With food for natural B12; sublingual/liposomal forms don't require food",
+        onset_time="Serum rise: 1–2 days; clinical improvement in deficiency: 2–6 weeks",
+        washout="Body stores 3–5 years worth (liver); true deficiency is slow to develop but slow to correct",
+        ul_or_noael="No established UL; doses up to 2000mcg/d used safely",
+        contraindications=["Leber's hereditary optic neuropathy (theoretical)", "Sensitivity to cobalt"],
+        sport_specific_notes={
+            "endurance": "Essential for RBC production; deficiency mimics anemia and impairs VO2max",
+            "vegan_athletes": "MUST supplement — no reliable plant sources. Check MMA/holoTC, not just serum B12.",
+            "tactical": "Deficiency common in those taking metformin for glucose management",
+        },
+        evidence="🟢 Strong for deficiency correction; 🟠 Weak for performance enhancement in replete individuals",
+        mechanism="Cofactor for methionine synthase (homocysteine → methionine, one-carbon metabolism) and methylmalonyl-CoA mutase "
+                  "(odd-chain fatty acid metabolism). Essential for DNA synthesis, myelin maintenance, and RBC production. "
+                  "Deficiency → megaloblastic anemia, neuropathy, elevated homocysteine (cardiovascular risk)",
+        key_references=[
+            "Stabler (2013) NEJM — Vitamin B12 deficiency review",
+            "Pawlak et al. (2013) Nutr Rev — B12 status in vegetarians",
+        ],
+    ),
+
+    "folate": DosingProtocol(
+        name="Folate / Methylfolate",
+        category="health",
+        loading_dose=None,
+        maintenance_dose="400mcg DFE/d RDA; 600mcg/d pregnancy; 800–1000mcg/d for MTHFR polymorphism",
+        timing="With meals; consistent daily timing",
+        duration="Chronic; critical for women of childbearing age (prevents neural tube defects)",
+        best_forms=["L-5-methyltetrahydrofolate (5-MTHF, active form)", "Folinic acid (leucovorin)", "Folic acid (synthetic, requires MTHFR conversion)"],
+        absorption_enhancers=["Vitamin B12 (work synergistically in methylation)", "Vitamin B6 (pyridoxine)"],
+        absorption_inhibitors=["Alcohol (reduces folate status)", "Methotrexate (folate antagonist)", "Some antiepileptics"],
+        food_interaction="Take with meals; often combined with B-complex",
+        onset_time="Serum rise: days; RBC folate (true status): 2–3 months",
+        washout="RBC folate reflects 120-day RBC lifespan; chronic changes slow",
+        ul_or_noael="UL: 1000mcg/d synthetic folic acid (masks B12 deficiency); no UL for methylfolate from food",
+        contraindications=["Untreated B12 deficiency (folate masks hematologic signs while neuropathy progresses)", "Methotrexate therapy"],
+        sport_specific_notes={
+            "female_athletes": "Critical if planning pregnancy; 800mcg/d reduces NTD risk 70%",
+            "endurance": "Supports RBC production and methylation under oxidative stress",
+            "strength": "Methylation supports testosterone metabolism and DNA repair post-training",
+        },
+        evidence="🟢 Strong for NTD prevention; 🟡 Moderate for homocysteine lowering; 🟠 Weak for direct performance",
+        mechanism="One-carbon metabolism — transfers methyl groups for DNA synthesis (thymidylate), methionine regeneration, "
+                  "and methylation of proteins/DNA/neurotransmitters. MTHFR C677T polymorphism (30% of population) reduces "
+                  "conversion of folic acid to active 5-MTHF — these individuals benefit from methylfolate supplementation.",
+        key_references=[
+            "Bailey et al. (2015) J Nutr — Folate and B12 requirements",
+            "Greenberg et al. (2011) Rev Obstet Gynecol — MTHFR and pregnancy",
+        ],
+    ),
+
+    "probiotics": DosingProtocol(
+        name="Probiotics",
+        category="health",
+        loading_dose=None,
+        maintenance_dose="1–10 billion CFU/d (multi-strain); 10–20 billion during antibiotic use or travel",
+        timing="With food or just before meal (improves gut survival); consistent daily",
+        duration="Chronic for gut health; acute for travel/antibiotic protection (2 weeks before + during + 2 weeks after)",
+        best_forms=["Lactobacillus + Bifidobacterium multi-strain", "Saccharomyces boulardii (yeast, antibiotic-resistant)", "Spore-based Bacillus (shelf-stable)"],
+        absorption_enhancers=["Prebiotic fiber (FOS, inulin) — feeds probiotics", "Polyphenol-rich foods"],
+        absorption_inhibitors=["Heat >40°C (kills live strains)", "Stomach acid without enteric coating"],
+        food_interaction="With small meal containing fat; avoid hot beverages within 30 min",
+        onset_time="Stool changes: 1–2 weeks; immune effects: 4–8 weeks",
+        washout="Colonization is transient — benefits persist only while taking",
+        ul_or_noael="No established UL; doses up to 100 billion CFU/d well-tolerated",
+        contraindications=["Severe immunocompromise (sepsis risk)", "Central venous catheter (rare bacteremia)", "Acute pancreatitis"],
+        sport_specific_notes={
+            "endurance": "Reduces URI frequency (upper respiratory infections) in heavy training; L. casei and B. lactis strongest evidence",
+            "combat_sports": "Protect GI during weight cuts; useful during travel competitions",
+            "tactical": "Useful during deployments, high-stress environments, antibiotic use",
+        },
+        evidence="🟡 Moderate for GI symptom management and immune support in athletes; strain-specific",
+        mechanism="Modulates gut microbiota — competes with pathogens, produces SCFAs (butyrate → colonocyte fuel), "
+                  "supports tight junction integrity (reducing endotoxemia), and interacts with gut-associated lymphoid tissue (GALT) "
+                  "to modulate systemic immunity. Specific strains have distinct effects — not interchangeable.",
+        key_references=[
+            "West et al. (2014) Br J Sports Med — Probiotics and exercise-related immune function",
+            "Pyne et al. (2015) Curr Sports Med Rep — Probiotics for athletes",
+        ],
+    ),
+
+    "curcumin": DosingProtocol(
+        name="Curcumin (Turmeric)",
+        category="recovery",
+        loading_dose=None,
+        maintenance_dose="500–1500mg/d curcuminoids (with piperine 5–20mg or liposomal form)",
+        timing="With fat-containing meal (lipid-soluble); split BID for sustained levels",
+        duration="Chronic for anti-inflammatory effect; acute pre-/post-workout for DOMS reduction",
+        best_forms=["Meriva (phytosome, 29x bioavailability)", "Theracurmin (nanoparticle, 27x)", "Curcumin + piperine 95:5 (BioPerine, 20x)", "Liposomal curcumin"],
+        absorption_enhancers=["Piperine (inhibits glucuronidation)", "Dietary fat (lipid-soluble)", "Liposomal/phytosome delivery systems"],
+        absorption_inhibitors=["Low-fat intake", "Plain curcumin without bioenhancer (absorbed <1%)"],
+        food_interaction="Requires fat for absorption; take with meal containing 10g+ fat",
+        onset_time="Acute anti-inflammatory: 2–4h; chronic effects: 4–8 weeks",
+        washout="Plasma half-life 2–6h depending on formulation",
+        ul_or_noael="No established UL; up to 12g/d used in clinical trials without serious AE",
+        contraindications=["Gallbladder disease (stimulates bile)", "Anticoagulants (mild platelet inhibition)", "Before surgery (stop 2 weeks prior)"],
+        sport_specific_notes={
+            "strength": "Reduces DOMS and CK post-eccentric exercise; 1500mg/d starting 7 days pre-training block",
+            "endurance": "May preserve mitochondrial function; caution with chronic high-dose (antioxidant may blunt adaptation)",
+            "combat_sports": "Useful for joint/tendon inflammation in repetitive-impact sports",
+        },
+        evidence="🟡 Moderate for DOMS reduction and joint inflammation; 🟢 Strong for molecular anti-inflammatory effects in vitro",
+        mechanism="Pleiotropic anti-inflammatory: inhibits NF-κB signaling, reduces COX-2 and iNOS expression, modulates "
+                  "JAK-STAT and MAPK pathways. Antioxidant via direct ROS scavenging and Nrf2 pathway activation. "
+                  "Inhibits NLRP3 inflammasome. Poor oral bioavailability without bioenhancers (extensive glucuronidation + sulfation).",
+        key_references=[
+            "Fang & Bao (2022) Eur J Appl Physiol — Curcumin for exercise recovery meta-analysis",
+            "Hewlings & Kalman (2017) Foods — Curcumin bioavailability and efficacy",
+        ],
+    ),
+
+    "quercetin": DosingProtocol(
+        name="Quercetin",
+        category="ergogenic",
+        loading_dose=None,
+        maintenance_dose="500–1000mg/d (often 500mg BID)",
+        timing="With meals (improves absorption); 1–2h pre-workout for acute ergogenic effect",
+        duration="Chronic loading 1–2 weeks before endurance event; may be taken year-round for immune support",
+        best_forms=["Quercetin dihydrate (standard)", "Quercetin phytosome (Lecithin complex, better bioavailability)", "EMIQ (enzymatically modified, ~40x absorbed)"],
+        absorption_enhancers=["Bromelain/papain (proteolytic enzymes)", "Vitamin C (synergistic)", "Dietary fat"],
+        absorption_inhibitors=["Plain quercetin glycosides (lower bioavailability than aglycone)"],
+        food_interaction="With meal containing fat; quercetin from onions/apples has better bioavailability than pure supplement",
+        onset_time="Plasma: 2–4h; performance effects: 7–14 days chronic loading",
+        washout="Half-life ~16h; accumulates with repeated dosing",
+        ul_or_noael="No established UL; 1000mg/d well-tolerated; >1500mg/d may cause headache, GI upset",
+        contraindications=["Cyclosporine therapy (quercetin inhibits P-glycoprotein)", "Chronic kidney disease (high doses)", "Pregnancy (insufficient data)"],
+        sport_specific_notes={
+            "endurance": "Meta-analysis shows +2-3% VO2max and +11% endurance capacity with 1000mg/d × 2 weeks",
+            "combat_sports": "Useful during weight cuts for immune support; blunts URI incidence under training stress",
+            "tactical": "Military research shows improved cognitive performance under stress",
+        },
+        evidence="🟡 Moderate for endurance performance and immune modulation; synergistic with caffeine",
+        mechanism="Flavonoid with multiple mechanisms: inhibits adenosine A1 receptors (adenosine antagonist, caffeine-like), "
+                  "enhances mitochondrial biogenesis via PGC-1α upregulation, potent antioxidant, anti-inflammatory via NF-κB inhibition. "
+                  "May improve endothelial function via nitric oxide preservation. Synergizes with caffeine — combined dose "
+                  "enhances both acute and chronic adaptations.",
+        key_references=[
+            "Kressler et al. (2011) Med Sci Sports Exerc — Quercetin and endurance meta-analysis",
+            "Nieman et al. (2007) Med Sci Sports Exerc — Quercetin immunomodulation in athletes",
+        ],
+    ),
+
     "sodium_bicarbonate": DosingProtocol(
         name="Sodium Bicarbonate",
         category="ergogenic",
@@ -717,6 +899,24 @@ SUPPLEMENT_ALIASES: dict[str, str] = {
     "baking soda": "sodium_bicarbonate",
     "nahco3": "sodium_bicarbonate",
     "soda loading": "sodium_bicarbonate",
+    "ascorbic acid": "vitamin_c",
+    "vit c": "vitamin_c",
+    "c": "vitamin_c",
+    "cobalamin": "vitamin_b12",
+    "methylcobalamin": "vitamin_b12",
+    "b12": "vitamin_b12",
+    "vit b12": "vitamin_b12",
+    "methylfolate": "folate",
+    "5-mthf": "folate",
+    "folic acid": "folate",
+    "l-methylfolate": "folate",
+    "probiotic": "probiotics",
+    "lactobacillus": "probiotics",
+    "bifidobacterium": "probiotics",
+    "turmeric": "curcumin",
+    "meriva": "curcumin",
+    "theracurmin": "curcumin",
+    "flavonoid": "quercetin",
 }
 
 
