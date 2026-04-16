@@ -121,6 +121,9 @@ from memory import client_manager
 from memory.preferences import PreferencesStore
 from tools.pdf_export import generate_client_report, BrandConfig
 from agents.recommender import RecommenderAgent
+from agents.meal_plan import MealPlanAgent
+from agents.training_plan import TrainingPlanAgent
+from tools.auto_quality import auto_assess as auto_quality_assess
 from tools.supplements import resolve_supplement, SUPPLEMENT_DB
 from tools.interactions import lookup_interactions
 
@@ -304,6 +307,8 @@ class Kiwi:
         self.profile = UserProfile(client=self.active_client_name)
         self.preferences = PreferencesStore(client=self.active_client_name)
         self.recommender_agent = RecommenderAgent(self.client)
+        self.meal_plan_agent = MealPlanAgent(self.client)
+        self.training_plan_agent = TrainingPlanAgent(self.client)
         self.pubmed = PubMedClient() if use_pubmed else None
         self.openalex = OpenAlexClient() if use_pubmed else None
         self.trials = ClinicalTrialsClient() if use_pubmed else None
@@ -615,6 +620,7 @@ class Kiwi:
                         "[bold]Literature:[/bold] /pubmed · /openalex · /trials · /tldr · /fulltext <doi> · /citedby <doi>\n"
                         "[bold]Deep Research:[/bold] /synthesize <claim> · /n_of_1 <q> · /grade · /quality · /recommend <finding>\n"
                         "[bold]Delivery:[/bold]  /pdf · /accepted [note] · /rejected [reason] · /preferences\n"
+                        "[bold]Planning:[/bold]  /meal_plan [days] · /training_plan [sport] [weeks] · /autoquality <title>\n"
                         "[bold]Clients:[/bold]    /clients · /new_client <name> · /switch_client <name> · /delete_client <name>\n"
                         "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords> · /stale\n"
                         "[bold]Threads:[/bold]  /thread new|use|list <name>\n"
@@ -962,6 +968,95 @@ class Kiwi:
                             "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
                         })
                         console.print(result)
+
+                elif q_lower.startswith("/meal_plan") or q_lower.startswith("/mealplan"):
+                    payload = query.split(maxsplit=1)
+                    days = 3
+                    if len(payload) > 1:
+                        try:
+                            days = int(payload[1].strip().split()[0])
+                            days = max(1, min(14, days))
+                        except ValueError:
+                            pass
+
+                    missing = [f for f in ("weight_kg", "height_cm", "age", "sex", "activity_level")
+                               if not self.profile.get(f)]
+                    if missing:
+                        console.print(f"[dim red]  Missing profile fields: {', '.join(missing)}. Set with /profile set <field> <value>[/dim red]")
+                    else:
+                        try:
+                            m = self.calc.compute_full_metrics(
+                                weight_kg=self.profile.get("weight_kg"),
+                                height_cm=self.profile.get("height_cm"),
+                                age=self.profile.get("age"),
+                                sex=self.profile.get("sex"),
+                                activity_level=self.profile.get("activity_level"),
+                                body_fat_pct=self.profile.get("body_fat_pct"),
+                            )
+                            macros_text = m.summary()
+                        except Exception as e:
+                            macros_text = f"(could not compute: {e})"
+
+                        restrictions = self.profile.get("dietary_restrictions") or []
+                        restrictions_text = ", ".join(restrictions) if restrictions else "none"
+                        goal = self.profile.get("primary_goal") or "maintenance"
+                        sport = self.profile.get("sport") or "general athletic"
+
+                        console.print(f"[dim]  Generating {days}-day meal plan for {sport}...[/dim]\n")
+                        result = await self.meal_plan_agent.run({
+                            "profile_summary": self.profile.to_summary(),
+                            "macro_targets": macros_text,
+                            "days": days,
+                            "training_schedule": f"Sport: {sport}",
+                            "dietary_restrictions": restrictions_text,
+                            "goal": goal,
+                        })
+                        console.print(result)
+
+                elif q_lower.startswith("/training_plan") or q_lower.startswith("/trainingplan"):
+                    parts = query.split(maxsplit=2)
+                    sport = self.profile.get("sport") or "strength"
+                    weeks = 8
+                    if len(parts) >= 2:
+                        try:
+                            weeks = int(parts[1].strip())
+                            weeks = max(2, min(24, weeks))
+                        except ValueError:
+                            sport = parts[1].strip()
+                            if len(parts) >= 3:
+                                try:
+                                    weeks = int(parts[2].strip().split()[0])
+                                except ValueError:
+                                    pass
+
+                    goal = self.profile.get("primary_goal") or "strength"
+                    training_status = self.profile.get("training_status") or "intermediate"
+
+                    console.print(f"[dim]  Generating {weeks}-week training block for {sport}...[/dim]\n")
+                    result = await self.training_plan_agent.run({
+                        "profile_summary": self.profile.to_summary(),
+                        "sport": sport,
+                        "weeks": weeks,
+                        "goal": goal,
+                        "current_maxes": "",
+                        "current_load": "",
+                        "frequency": 4,
+                    })
+                    console.print(result)
+
+                elif q_lower.startswith("/autoquality "):
+                    payload = query[13:].strip()
+                    if payload:
+                        # Simple: run auto-quality on a title (useful for rapid triage)
+                        flag = auto_quality_assess(payload)
+                        console.print(Panel(
+                            flag.display(),
+                            title="[cyan]Auto Quality Assessment[/cyan]",
+                            border_style="cyan",
+                            box=box.SIMPLE,
+                        ))
+                    else:
+                        console.print("[dim]  Usage: /autoquality <paper title or title + abstract>[/dim]")
 
                 elif q_lower == "/pdf" or q_lower.startswith("/pdf "):
                     if not last_response:
