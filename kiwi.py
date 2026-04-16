@@ -44,6 +44,12 @@ from agents.base import REFINEMENT_THRESHOLD
 from tools.pubmed import PubMedClient
 from tools.openalex import OpenAlexClient, SPORTS_NUTRITION_JOURNALS
 from tools.clinical_trials import ClinicalTrialsClient
+from tools.europepmc import EuropePMCClient
+from tools.unpaywall import UnpaywallClient
+from tools.semantic_scholar import SemanticScholarClient
+from tools.grade import assess as grade_assess, GradeInputs, assess_from_evidence_tier
+from agents.synthesis import SynthesisAgent
+from agents.n_of_1 import NOf1Agent
 from tools.calculations import SportsCalc
 from tools.exporter import ResearchExporter
 from tools.interactions import lookup_interactions, lookup_single, format_interaction_report, has_novel_compounds, analyze_novel_interactions
@@ -261,6 +267,11 @@ class Kiwi:
         self.pubmed = PubMedClient() if use_pubmed else None
         self.openalex = OpenAlexClient() if use_pubmed else None
         self.trials = ClinicalTrialsClient() if use_pubmed else None
+        self.epmc = EuropePMCClient() if use_pubmed else None
+        self.unpaywall = UnpaywallClient() if use_pubmed else None
+        self.semantic = SemanticScholarClient() if use_pubmed else None
+        self.synthesis_agent = SynthesisAgent(self.client)
+        self.n_of_1_agent = NOf1Agent(self.client)
         self.exporter = ResearchExporter()
         self.calc = SportsCalc()
         self.fdc = FDCClient()
@@ -557,7 +568,8 @@ class Kiwi:
                 if q_lower in ("/help", "/commands"):
                     help_text = (
                         "[bold]Research:[/bold]  Just type a question · /protocol <query> · /plan <query>\n"
-                        "[bold]Literature:[/bold] /pubmed <q> · /openalex <q> · /trials <q> · /citedby <doi>\n"
+                        "[bold]Literature:[/bold] /pubmed · /openalex · /trials · /tldr · /fulltext <doi> · /citedby <doi>\n"
+                        "[bold]Deep Research:[/bold] /synthesize <claim> · /n_of_1 <question> · /grade <tier>\n"
                         "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords> · /stale\n"
                         "[bold]Threads:[/bold]  /thread new|use|list <name>\n"
                         "[bold]Profile:[/bold]  /profile · /profile set <field> <value>\n"
@@ -784,6 +796,101 @@ class Kiwi:
                             console.print("[dim]  No results found.[/dim]")
                     elif not self.pubmed:
                         console.print("[dim]  PubMed disabled (run without --no-pubmed).[/dim]")
+
+                elif q_lower.startswith("/fulltext "):
+                    doi = query[10:].strip()
+                    if doi and self.unpaywall:
+                        with console.status("[dim cyan]  Looking up open access version via Unpaywall...[/dim cyan]", spinner="earth"):
+                            result = self.unpaywall.lookup(doi)
+                        if result and result.is_oa:
+                            console.print(Panel(
+                                result.summary(),
+                                title="[cyan]Open Access Available[/cyan]",
+                                border_style="green",
+                                box=box.SIMPLE,
+                            ))
+                        elif result:
+                            console.print(f"[dim]  No OA version found for {doi}.[/dim]")
+                        else:
+                            console.print(f"[dim]  DOI lookup failed.[/dim]")
+                    elif not self.unpaywall:
+                        console.print("[dim]  Unpaywall disabled (run without --no-pubmed).[/dim]")
+
+                elif q_lower.startswith("/tldr "):
+                    search_query = query[6:].strip()
+                    if search_query and self.semantic:
+                        with console.status("[dim cyan]  Fetching Semantic Scholar TLDRs...[/dim cyan]", spinner="earth"):
+                            papers = self.semantic.search(search_query, max_results=8)
+                        if papers:
+                            for i, p in enumerate(papers, 1):
+                                tldr = p.tldr or "(no TLDR available)"
+                                console.print(
+                                    f"\n[cyan][{i}][/cyan] [bold]{p.title}[/bold]\n"
+                                    f"[dim]{', '.join(p.authors[:2])} ({p.year}) · {p.journal} · cited {p.citation_count}x[/dim]\n"
+                                    f"[green]TLDR:[/green] {tldr}\n"
+                                    f"DOI: {p.doi}"
+                                )
+                        else:
+                            console.print("[dim]  No papers found.[/dim]")
+                    elif not self.semantic:
+                        console.print("[dim]  Semantic Scholar disabled (run without --no-pubmed).[/dim]")
+
+                elif q_lower.startswith("/synthesize "):
+                    claim = query[12:].strip()
+                    if claim:
+                        console.print(f"[dim]  Gathering evidence for synthesis: '{claim}'...[/dim]")
+                        # Pull from multiple sources for the claim
+                        papers_ctx = fetch_literature_context(
+                            claim, self.pubmed, self.openalex,
+                        )
+                        if self.epmc:
+                            epmc_articles = self.epmc.search(claim, max_results=4, open_access_only=True)
+                            if epmc_articles:
+                                papers_ctx += "\n\n" + self.epmc.build_context_block(epmc_articles)
+                        if self.semantic:
+                            ss_papers = self.semantic.search(claim, max_results=4)
+                            if ss_papers:
+                                papers_ctx += "\n\n" + self.semantic.build_context_block(ss_papers)
+
+                        if not papers_ctx:
+                            console.print("[dim red]  No literature found for this claim.[/dim red]")
+                        else:
+                            console.print("[dim]  Running structured synthesis with GRADE assessment...[/dim]\n")
+                            result = await self.synthesis_agent.run({
+                                "claim": claim,
+                                "papers_context": papers_ctx,
+                                "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
+                            })
+                            console.print(result)
+
+                elif q_lower.startswith("/n_of_1 ") or q_lower.startswith("/nof1 "):
+                    offset = 8 if q_lower.startswith("/n_of_1 ") else 6
+                    question = query[offset:].strip()
+                    if question:
+                        research_ctx = ""
+                        if self.pubmed or self.openalex:
+                            research_ctx = fetch_literature_context(question, self.pubmed, self.openalex)
+                        console.print("[dim]  Designing n-of-1 experimental protocol...[/dim]\n")
+                        result = await self.n_of_1_agent.run({
+                            "question": question,
+                            "research_context": research_ctx,
+                            "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
+                        })
+                        console.print(result)
+
+                elif q_lower.startswith("/grade "):
+                    tier = query[7:].strip()
+                    if tier in ("🟢", "🟡", "🟠", "🔵"):
+                        assessment = assess_from_evidence_tier(tier)
+                        console.print(Panel(
+                            assessment.display(),
+                            title="[cyan]GRADE Assessment[/cyan]",
+                            border_style="cyan",
+                            box=box.SIMPLE,
+                        ))
+                    else:
+                        console.print("[dim]  Usage: /grade 🟢 (or 🟡/🟠/🔵) — converts tier to GRADE certainty level.[/dim]")
+                        console.print("[dim]  For structured GRADE assessment of a claim, use /synthesize <claim>[/dim]")
 
                 elif q_lower.startswith("/trials "):
                     search_query = query[8:].strip()

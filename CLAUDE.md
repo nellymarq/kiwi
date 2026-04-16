@@ -2,23 +2,36 @@
 
 ## Quick Reference
 - Launch: `python3 kiwi.py`
-- Tests: `python3 -m pytest tests/ -x -q` (890 tests)
+- Tests: `python3 -m pytest tests/ -x -q` (940 tests)
 - GitHub: `nellymarq/kiwi`
 - Always run tests before committing code changes.
 
 ## Architecture
-- `agents/`: Planning, Critique/RWL, Protocol, Orchestrator, SportsAgent (all async, claude-opus-4-6)
-- `tools/`: PubMed, OpenAlex (20 sports nutrition journals), SportsCalc, ResearchExporter, supplements (19), interactions, body_composition, training_zones, recovery, hydration, periodization, biomarkers, sleep_optimizer, injury_prevention, female_athlete, environmental, mental_performance, food_database, race_predictor
+- `agents/`: Planning, Critique/RWL, Protocol, Orchestrator, SportsAgent, **Synthesis** (multi-paper deep review), **NOf1Agent** (experimental design). All async, claude-opus-4-6.
+- `tools/`: PubMed, OpenAlex, ClinicalTrials.gov, **EuropePMC** (full-text OA), **Unpaywall** (OA PDF discovery), **Semantic Scholar** (TLDR + citations), **GRADE** (evidence grading), SportsCalc, ResearchExporter, supplements (25), interactions (67), biomarkers (28), body_composition, training_zones, recovery, hydration, periodization, sleep_optimizer, injury_prevention, female_athlete, environmental, mental_performance, food_database, race_predictor
 - `memory/`: KiwiMemory (episodic + semantic + threads + archive), UserProfile (validated)
 
-## Literature Sources
-- **PubMed** — biomedical literature via NCBI E-utilities (primary)
-- **OpenAlex** — 250M+ works, filtered to sports nutrition journals (JISSN, BJSM, IJSNEM, Sports Medicine, Nutrients, Frontiers, MSSE, etc.)
-- Deduplicated by DOI, merged into single context block
+## Literature Sources (5 databases)
+- **PubMed** — NCBI biomedical literature
+- **OpenAlex** — 250M+ works, sports nutrition journal filter
+- **ClinicalTrials.gov** — 500K+ registered trials
+- **Europe PMC** — 40M+ articles, 6M+ full-text open access
+- **Semantic Scholar** — 200M+ papers with AI-generated TLDR summaries
 
-## Commands (55+)
+All deduplicated by DOI, merged into a single context block for Claude.
+
+## Research Methodology
+- **GRADE evidence grading** — formal certainty assessment (HIGH/MODERATE/LOW/VERY LOW) with explicit justification
+- **Ralph Wiggum Loop** — 5-dimension critique (grounding, hierarchy, mechanism, logic, uncertainty)
+- **Evidence Synthesis Agent** — structured multi-paper review with consensus/contradiction analysis
+- **N-of-1 Protocol Designer** — rigorous single-subject experimental design
+- **Citation chasing** — forward (cited by) and backward (references)
+- **Full-text access** — Europe PMC + Unpaywall for OA PDFs
+
+## Commands (65+)
 - **Research:** direct query · /protocol · /plan
-- **Literature:** /pubmed · /openalex
+- **Literature:** /pubmed · /openalex · /trials · /tldr · /fulltext <doi> · /citedby <doi>
+- **Deep Research:** /synthesize <claim> · /n_of_1 <question> · /grade <tier>
 - **Memory:** /memory · /remember · /export · /archive · /stale
 - **Threads:** /thread new|use|list
 - **Profile:** /profile · /profile set
