@@ -124,6 +124,8 @@ from agents.recommender import RecommenderAgent
 from agents.meal_plan import MealPlanAgent
 from agents.training_plan import TrainingPlanAgent
 from tools.auto_quality import auto_assess as auto_quality_assess
+from tools.effect_size import cohens_d, hedges_g, mean_difference, relative_risk, odds_ratio, number_needed_to_treat
+from tools.pdf_reader import read_pdf as read_oa_pdf
 from tools.supplements import resolve_supplement, SUPPLEMENT_DB
 from tools.interactions import lookup_interactions
 
@@ -621,6 +623,7 @@ class Kiwi:
                         "[bold]Deep Research:[/bold] /synthesize <claim> · /n_of_1 <q> · /grade · /quality · /recommend <finding>\n"
                         "[bold]Delivery:[/bold]  /pdf · /accepted [note] · /rejected [reason] · /preferences\n"
                         "[bold]Planning:[/bold]  /meal_plan [days] · /training_plan [sport] [weeks] · /autoquality <title>\n"
+                        "[bold]Analytics:[/bold] /effect <m1 sd1 n1 m2 sd2 n2> · /readpdf <doi>\n"
                         "[bold]Clients:[/bold]    /clients · /new_client <name> · /switch_client <name> · /delete_client <name>\n"
                         "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords> · /stale\n"
                         "[bold]Threads:[/bold]  /thread new|use|list <name>\n"
@@ -1043,6 +1046,69 @@ class Kiwi:
                         "frequency": 4,
                     })
                     console.print(result)
+
+                elif q_lower.startswith("/effect "):
+                    parts = query[8:].strip().split()
+                    if len(parts) == 6:
+                        try:
+                            m1, sd1, n1, m2, sd2, n2 = (
+                                float(parts[0]), float(parts[1]), int(parts[2]),
+                                float(parts[3]), float(parts[4]), int(parts[5]),
+                            )
+                            d_result = cohens_d(m1, sd1, n1, m2, sd2, n2)
+                            g_result = hedges_g(m1, sd1, n1, m2, sd2, n2)
+                            md_result = mean_difference(m1, sd1, n1, m2, sd2, n2)
+                            console.print(Panel(
+                                f"{d_result.display()}\n\n"
+                                f"{g_result.display()}\n\n"
+                                f"{md_result.display()}",
+                                title="[cyan]Effect Size Analysis[/cyan]",
+                                border_style="cyan",
+                                box=box.SIMPLE,
+                            ))
+                        except (ValueError, ZeroDivisionError) as e:
+                            console.print(f"[dim red]  Error: {e}[/dim red]")
+                    elif len(parts) == 4:
+                        try:
+                            ea, ta, eb, tb = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
+                            rr = relative_risk(ea, ta, eb, tb)
+                            or_val = odds_ratio(ea, ta, eb, tb)
+                            nnt = number_needed_to_treat(ea, ta, eb, tb)
+                            console.print(Panel(
+                                f"{rr.display()}\n\n"
+                                f"{or_val.display()}\n\n"
+                                f"NNT: {nnt['interpretation']}",
+                                title="[cyan]Effect Size (Dichotomous)[/cyan]",
+                                border_style="cyan",
+                                box=box.SIMPLE,
+                            ))
+                        except ValueError as e:
+                            console.print(f"[dim red]  Error: {e}[/dim red]")
+                    else:
+                        console.print(
+                            "[dim]  Usage for continuous: /effect <mean1> <sd1> <n1> <mean2> <sd2> <n2>[/dim]\n"
+                            "[dim]  Usage for dichotomous: /effect <events_a> <total_a> <events_b> <total_b>[/dim]"
+                        )
+
+                elif q_lower.startswith("/readpdf "):
+                    doi = query[9:].strip()
+                    if doi and self.unpaywall:
+                        console.print(f"[dim]  Looking up OA version for {doi}...[/dim]")
+                        pdf = read_oa_pdf(doi, self.unpaywall)
+                        if pdf:
+                            console.print(f"[dim]  Extracted {pdf.extracted_chars:,} chars across {pdf.num_pages} pages[/dim]")
+                            console.print(f"[dim]  Cached at: {pdf.cached_path}[/dim]\n")
+                            sections = pdf.sections()
+                            if sections:
+                                console.print("[cyan]Detected sections:[/cyan]")
+                                for section_name in sections:
+                                    console.print(f"  • {section_name}")
+                            console.print(f"\n[cyan]Preview (first 2000 chars):[/cyan]\n")
+                            console.print(pdf.preview(2000))
+                        else:
+                            console.print(f"[dim red]  Could not retrieve PDF (no OA version or extraction failed).[/dim red]")
+                    elif not self.unpaywall:
+                        console.print("[dim]  Unpaywall disabled (run without --no-pubmed).[/dim]")
 
                 elif q_lower.startswith("/autoquality "):
                     payload = query[13:].strip()

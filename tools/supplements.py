@@ -836,6 +836,345 @@ SUPPLEMENT_DB: dict[str, DosingProtocol] = {
             "McNaughton et al. (2016) Sports Med — Sodium bicarbonate position stand",
         ],
     ),
+
+    # ── Tier 13 additions ──────────────────────────────────────────────────
+
+    "rhodiola": DosingProtocol(
+        name="Rhodiola rosea",
+        category="recovery",
+        loading_dose=None,
+        maintenance_dose="200–600mg/d standardized to 3% rosavins / 1% salidrosides",
+        timing="Morning on empty stomach; avoid late day (can be stimulating)",
+        duration="Chronic 4–12 weeks; may cycle 6 weeks on / 2 weeks off",
+        best_forms=["SHR-5 extract (standardized)", "Rosavin extract 3:1"],
+        absorption_enhancers=["Empty stomach"],
+        absorption_inhibitors=[],
+        food_interaction="Empty stomach for best absorption; with food if GI upset",
+        onset_time="Acute: 30–60 min for cognitive; chronic: 2–4 weeks for stress adaptation",
+        washout="Effects dissipate within days of cessation",
+        ul_or_noael="No established UL; 680mg/d used safely in trials",
+        contraindications=["Bipolar disorder (possible mood activation)", "MAOIs"],
+        sport_specific_notes={
+            "endurance": "May delay perceived exertion in prolonged events; 288mg/d 30 days showed benefit",
+            "combat_sports": "Useful for cognitive resilience during weight cuts",
+            "tactical": "Improves cognitive performance under sustained stress",
+        },
+        evidence="🟡 Moderate for stress-related fatigue and cognitive performance",
+        mechanism="Adaptogen — modulates HPA axis via reducing cortisol response to stressors. "
+                  "Salidroside may inhibit MAO-A/B (modest), increase ATP production in mitochondria, "
+                  "and support neurotransmitter balance (serotonin, dopamine, norepinephrine).",
+        key_references=[
+            "Ishaque et al. (2012) BMC Complement Altern Med — Rhodiola systematic review",
+            "Olsson et al. (2009) Planta Med — Rhodiola for stress-related fatigue RCT",
+        ],
+    ),
+
+    "fadogia_agrestis": DosingProtocol(
+        name="Fadogia agrestis",
+        category="ergogenic",
+        loading_dose=None,
+        maintenance_dose="600–1200mg/d (limited human data; most dosing extrapolated from rodent)",
+        timing="Morning or pre-workout",
+        duration="Cycle 8 weeks on / 4 weeks off (liver safety precaution)",
+        best_forms=["Standardized extract (verify third-party tested)"],
+        absorption_enhancers=["Take with fat-containing meal"],
+        absorption_inhibitors=[],
+        food_interaction="With food to improve absorption and reduce GI irritation",
+        onset_time="Unclear in humans; rodent data shows weeks",
+        washout="Not well characterized",
+        ul_or_noael="No human UL established; rodent studies show hepatotoxicity at high doses",
+        contraindications=["Liver disease", "Hepatotoxic medications", "Pregnancy"],
+        sport_specific_notes={
+            "strength": "Popular in performance community but human evidence is minimal (🔵)",
+            "combat_sports": "Anecdotal support; no RCT evidence",
+            "caution": "Monitor liver enzymes (ALT/AST) if using long-term",
+        },
+        evidence="🔵 Emerging — Only rodent data; no published human RCTs as of 2026",
+        mechanism="Proposed to upregulate luteinizing hormone (LH) and testosterone synthesis in Leydig cells "
+                  "(rodent data). Claimed alkaloid content modulates testicular steroidogenesis. "
+                  "Human translation unknown — use with caution.",
+        key_references=[
+            "Yakubu et al. (2005) Asian J Androl — Fadogia agrestis aqueous extract in rats",
+            "Note: Human clinical data lacking as of 2026",
+        ],
+    ),
+
+    "tongkat_ali": DosingProtocol(
+        name="Tongkat Ali (Eurycoma longifolia)",
+        category="ergogenic",
+        loading_dose=None,
+        maintenance_dose="200–400mg/d standardized to eurycomanone ≥2%",
+        timing="Morning with breakfast",
+        duration="Chronic 4–12 weeks; cycle 8 weeks on / 2 weeks off",
+        best_forms=["Physta (standardized 100mg = 400mg raw equivalent)", "LJ100"],
+        absorption_enhancers=["With meal"],
+        absorption_inhibitors=[],
+        food_interaction="Take with food for absorption and to reduce stomach irritation",
+        onset_time="Hormonal effects: 2–4 weeks; stress/cortisol: acute in high-stress cohorts",
+        washout="Returns to baseline within 2–4 weeks of cessation",
+        ul_or_noael="NOAEL: 600mg/d; higher doses may cause insomnia or irritability",
+        contraindications=["Hormone-sensitive cancers (prostate, breast)", "Pregnancy", "Immunosuppression"],
+        sport_specific_notes={
+            "strength": "Modest testosterone support in deficient/stressed individuals; minimal in replete",
+            "combat_sports": "May reduce cortisol during high-stress training phases",
+            "endurance": "Limited direct benefit",
+        },
+        evidence="🟡 Moderate for stress-related testosterone support; weaker for healthy baseline",
+        mechanism="Quassinoids (eurycomanone) reduce SHBG binding to free testosterone, increasing bioavailable T. "
+                  "May modulate HPA axis by reducing cortisol response to stressors. "
+                  "Some evidence for supporting LH pulse frequency.",
+        key_references=[
+            "Talbott et al. (2013) JISSN — Tongkat ali and mood/stress hormones",
+            "Henkel et al. (2014) Phytother Res — Tongkat ali and testosterone in older men",
+        ],
+    ),
+
+    "phosphatidylserine": DosingProtocol(
+        name="Phosphatidylserine (PS)",
+        category="cognitive",
+        loading_dose=None,
+        maintenance_dose="300–800mg/d for cortisol modulation; 100–200mg/d for cognitive",
+        timing="With meals; cortisol protocol: pre-workout if training is stressor",
+        duration="Chronic 4+ weeks for cortisol; ongoing for cognitive support",
+        best_forms=["Soy-derived PS", "Sunflower-derived PS (soy-free)"],
+        absorption_enhancers=["Fat-containing meal (phospholipid)"],
+        absorption_inhibitors=["Low-fat intake"],
+        food_interaction="Take with meal containing fat",
+        onset_time="Cortisol reduction: 10 days at 600mg/d; cognitive: 12 weeks",
+        washout="Effects dissipate within days of cessation",
+        ul_or_noael="No established UL; up to 800mg/d used safely in trials",
+        contraindications=["Anticholinergic medications (theoretical)", "Blood thinners (mild)"],
+        sport_specific_notes={
+            "endurance": "600–800mg/d pre-training reduces cortisol response to heavy aerobic work",
+            "strength": "Attenuates cortisol elevation post-heavy training; may reduce muscle damage markers",
+            "combat_sports": "Useful during high-volume periods or weight cuts",
+        },
+        evidence="🟡 Moderate for cortisol attenuation; 🟠 Weak for direct performance",
+        mechanism="Major phospholipid of neuronal membranes; 300–600mg/d dampens ACTH release in response to stressors "
+                  "(acute exercise), reducing cortisol peak. Also supports neuronal membrane fluidity, "
+                  "acetylcholine release, and may improve cognitive performance in older adults.",
+        key_references=[
+            "Starks et al. (2008) JISSN — PS and exercise-induced cortisol",
+            "Kingsley et al. (2006) Med Sci Sports Exerc — PS and exercise stress",
+        ],
+    ),
+
+    "berberine": DosingProtocol(
+        name="Berberine",
+        category="health",
+        loading_dose=None,
+        maintenance_dose="500mg × 2–3/day (1000–1500mg total)",
+        timing="With meals (reduces GI side effects; improves postprandial glucose)",
+        duration="Chronic 8–24 weeks; typically cycle 8 on / 4 off or ongoing with monitoring",
+        best_forms=["Berberine HCl", "Dihydroberberine (better absorbed, ~5x bioavailability)"],
+        absorption_enhancers=["Milk thistle (silymarin) co-administration", "Dihydroberberine form"],
+        absorption_inhibitors=["P-glycoprotein activity limits absorption"],
+        food_interaction="With meals — reduces GI upset and provides glucose-lowering benefit",
+        onset_time="Glucose effects: 1–2 weeks; lipid effects: 4–8 weeks",
+        washout="Effects dissipate within weeks; not rapid",
+        ul_or_noael="NOAEL: ~1500mg/d; higher doses cause GI distress, constipation",
+        contraindications=["Pregnancy", "Neonates (bilirubin displacement)", "CYP3A4 substrates at high doses"],
+        sport_specific_notes={
+            "endurance": "Improves insulin sensitivity and glucose handling; may enhance substrate utilization",
+            "strength": "May improve nutrient partitioning during bulk phases",
+            "general_health": "Most effective for metabolic syndrome, NAFLD, insulin resistance",
+        },
+        evidence="🟢 Strong for glucose/HbA1c reduction; 🟡 Moderate for lipid profile improvement",
+        mechanism="AMPK activator — mimics caloric restriction/exercise signaling. Improves insulin sensitivity, "
+                  "reduces hepatic glucose output, and inhibits lipogenic enzymes. "
+                  "Also modulates gut microbiota favorably. Inhibits CYP3A4 and P-gp — check drug interactions.",
+        key_references=[
+            "Yin et al. (2008) Metabolism — Berberine vs metformin head-to-head",
+            "Dong et al. (2012) J Ethnopharmacol — Berberine for metabolic syndrome meta-analysis",
+        ],
+    ),
+
+    "bromelain": DosingProtocol(
+        name="Bromelain",
+        category="recovery",
+        loading_dose=None,
+        maintenance_dose="500–2000mg/d in divided doses (2000–6000 GDU activity)",
+        timing="Between meals for anti-inflammatory effect; with protein meals for digestive benefit",
+        duration="Acute: days to weeks around injury; chronic: indefinite for joint health",
+        best_forms=["Standardized to GDU or MCU activity (minimum 2400 GDU/g)"],
+        absorption_enhancers=["Empty stomach for systemic effect", "Quercetin (synergistic anti-inflammatory)"],
+        absorption_inhibitors=["High-protein meal (bromelain digests the protein rather than being absorbed systemically)"],
+        food_interaction="Between meals for anti-inflammatory use; with protein for digestive aid",
+        onset_time="Acute anti-inflammatory: hours; cumulative effect: 3–7 days",
+        washout="Plasma half-life ~9h",
+        ul_or_noael="No established UL; up to 3000mg/d well-tolerated",
+        contraindications=["Anticoagulants (additive effect)", "Pineapple allergy", "Pre-surgery (stop 2 weeks prior)"],
+        sport_specific_notes={
+            "strength": "Reduces DOMS and accelerates recovery from muscle damage",
+            "combat_sports": "Useful for joint/soft tissue recovery from repetitive impact",
+            "post_injury": "May reduce swelling and speed tissue repair",
+        },
+        evidence="🟡 Moderate for post-exercise recovery; 🟢 Strong for acute inflammation/edema",
+        mechanism="Proteolytic enzyme complex (cysteine proteases) from pineapple stem. "
+                  "Systemically absorbed (partial) to break down inflammatory mediators (bradykinin, fibrin, kinin). "
+                  "Modulates prostaglandin metabolism shifting from PGE2 (pro-inflammatory) to PGE1 (anti-inflammatory). "
+                  "Fibrinolytic activity supports healing of contusions and sprains.",
+        key_references=[
+            "Pavan et al. (2012) Biotechnol Res Int — Bromelain therapeutic applications",
+            "Shing et al. (2016) Sports Med — Anti-inflammatory supplementation for recovery",
+        ],
+    ),
+
+    "choline": DosingProtocol(
+        name="Choline",
+        category="cognitive",
+        loading_dose=None,
+        maintenance_dose="425mg/d (female) / 550mg/d (male) RDA; 1000–2000mg/d for cognitive enhancement",
+        timing="With meals; pre-workout for neuromuscular performance",
+        duration="Chronic — choline is an essential nutrient; most do not meet RDA from diet alone",
+        best_forms=["Alpha-GPC (best absorbed, crosses BBB)", "CDP-Choline (citicoline)", "Choline bitartrate (cheap)", "Phosphatidylcholine"],
+        absorption_enhancers=["Vitamin B12 (cofactor)", "Folate (cofactor)", "Methionine"],
+        absorption_inhibitors=[],
+        food_interaction="Take with meal; phospholipid forms need fat for absorption",
+        onset_time="Acute cognitive effects: 30–60 min (alpha-GPC); systemic: weeks",
+        washout="Liver stores replete quickly; plasma turnover hours",
+        ul_or_noael="UL: 3500mg/d (hypotension, sweating, fishy body odor above this)",
+        contraindications=["Trimethylaminuria (fishy odor syndrome)", "Bipolar disorder (high doses)"],
+        sport_specific_notes={
+            "endurance": "Long-distance events deplete plasma choline 40–50%; 2g/d loading may attenuate performance decline",
+            "strength": "Alpha-GPC 600mg pre-workout shown to increase power output and growth hormone",
+            "combat_sports": "Supports cognitive sharpness during weight cuts",
+        },
+        evidence="🟢 Strong for essential nutrient status; 🟡 Moderate for acute power/cognitive performance",
+        mechanism="Precursor to acetylcholine (neurotransmitter), phosphatidylcholine (membranes), and betaine (methyl donor). "
+                  "Alpha-GPC readily crosses BBB, increasing central acetylcholine. "
+                  "Critical for liver function (VLDL assembly, prevents NAFLD), methyl metabolism, "
+                  "and membrane integrity. Dietary deficiency common — 90% of US population below AI.",
+        key_references=[
+            "Ziegenfuss et al. (2008) JISSN — Alpha-GPC and resistance performance",
+            "Zeisel & da Costa (2009) Nutr Rev — Choline essentiality and recommended intake",
+        ],
+    ),
+
+    "nac": DosingProtocol(
+        name="N-Acetylcysteine (NAC)",
+        category="recovery",
+        loading_dose=None,
+        maintenance_dose="600–1800mg/d in divided doses (typically 600mg × 2–3/d)",
+        timing="Between meals for systemic effect; acute 30–60 min pre-workout for ergogenic",
+        duration="Chronic for glutathione/mucolytic; acute protocols for specific events",
+        best_forms=["Pharmaceutical-grade NAC", "Liposomal NAC (better absorption)", "Effervescent (faster)"],
+        absorption_enhancers=["Vitamin C (regenerates oxidized NAC)", "Empty stomach"],
+        absorption_inhibitors=["Food containing heavy metals (chelates)"],
+        food_interaction="Between meals for absorption; sulfur smell/taste may be off-putting",
+        onset_time="Plasma: 1h; glutathione elevation: weeks of chronic use",
+        washout="Half-life ~6h; regular dosing needed for sustained effect",
+        ul_or_noael="NOAEL: 2800mg/d short-term; long-term high dose may cause pulmonary issues rarely",
+        contraindications=["Asthma (rare bronchospasm)", "Active peptic ulcer", "Nitroglycerin (hypotension)"],
+        sport_specific_notes={
+            "endurance": "May reduce oxidative stress in prolonged exercise but CAUTION: blunts training adaptations at chronic high dose",
+            "strength": "Pre-competition use acceptable; avoid chronic high-dose during adaptive phases",
+            "recovery": "Supports glutathione in heavy training blocks and during travel/illness",
+        },
+        evidence="🟢 Strong for glutathione precursor effects and mucolytic; 🟡 Moderate for exercise performance (conflicting)",
+        mechanism="Cysteine donor (rate-limiting amino acid for glutathione synthesis). Replenishes GSH stores, "
+                  "the body's primary intracellular antioxidant. Mucolytic (breaks disulfide bonds in mucus). "
+                  "Chelates heavy metals. CAUTION: Acute NAC before exercise improves performance modestly, but chronic "
+                  "high-dose antioxidant may blunt mitochondrial biogenesis and training adaptation (Ristow et al. 2009).",
+        key_references=[
+            "Medved et al. (2004) J Appl Physiol — NAC and exercise performance",
+            "Ristow et al. (2009) PNAS — Antioxidants blunt exercise adaptation (CAUTION)",
+        ],
+    ),
+
+    "selenium": DosingProtocol(
+        name="Selenium",
+        category="health",
+        loading_dose=None,
+        maintenance_dose="55mcg/d RDA; athletes 100–200mcg/d; Hashimoto's 200mcg/d",
+        timing="With meals for absorption; consistent daily",
+        duration="Chronic — selenium status stabilizes over 6–12 weeks",
+        best_forms=["Selenomethionine (best bioavailability, organic form)", "Selenium yeast", "Selenate (inorganic)", "Brazil nuts (2–4 per day = ~100–200mcg)"],
+        absorption_enhancers=["Vitamin E (synergistic antioxidant)", "Iodine (thyroid pairing)"],
+        absorption_inhibitors=["Heavy metals (mercury, cadmium)", "High-dose vitamin C (may reduce selenite)"],
+        food_interaction="With meals; fat may enhance selenomethionine absorption",
+        onset_time="Serum: days; tissue saturation and enzyme activity: 6–12 weeks",
+        washout="Long tissue half-life (~90 days); supplements accumulate slowly",
+        ul_or_noael="UL: 400mcg/d (selenosis above this — hair/nail loss, garlic breath, GI)",
+        contraindications=["Already high serum selenium", "Certain cancers (lung — mixed evidence)", "Soil high in selenium"],
+        sport_specific_notes={
+            "thyroid_support": "Critical cofactor for deiodinases (T4→T3 conversion); 200mcg/d in Hashimoto's reduces TPO antibodies",
+            "endurance": "Supports glutathione peroxidase activity against oxidative stress",
+            "female_athletes": "Important for thyroid health during high training volumes",
+        },
+        evidence="🟢 Strong for deficiency correction and thyroid autoimmunity; 🟡 Moderate for supplementation in replete",
+        mechanism="Cofactor for 25+ selenoproteins including glutathione peroxidase (antioxidant), thioredoxin reductase, "
+                  "and iodothyronine deiodinases (thyroid hormone activation). Supports immune function, sperm quality, "
+                  "and cardiovascular health. Brazil nuts are richest dietary source but selenium content highly variable.",
+        key_references=[
+            "Rayman (2012) Lancet — Selenium and human health",
+            "Toulis et al. (2010) Thyroid — Selenium for Hashimoto's meta-analysis",
+        ],
+    ),
+
+    "potassium": DosingProtocol(
+        name="Potassium",
+        category="health",
+        loading_dose=None,
+        maintenance_dose="3500–4700mg/d AI (most adults consume 2500–3000mg); athletes may need 4500–5500mg/d",
+        timing="Throughout day with meals; avoid large single doses",
+        duration="Chronic — essential mineral; deficiency from sweat losses in athletes",
+        best_forms=["Food sources first (potatoes, bananas, avocado, spinach, beans)", "Potassium citrate supplement", "Potassium chloride (in electrolytes)"],
+        absorption_enhancers=["Magnesium (synergistic intracellular)", "Adequate carbohydrate intake"],
+        absorption_inhibitors=["Excess sodium (increases urinary K+ excretion)", "Loop diuretics"],
+        food_interaction="With meals; supplements should be split into ≤99mg doses to avoid GI irritation",
+        onset_time="Serum normalization: hours; intracellular repletion: weeks",
+        washout="Kidney regulates tightly; excess excreted rapidly",
+        ul_or_noael="OTC supplement legal limit: 99mg/dose; dietary sources safe unless kidney disease",
+        contraindications=["Chronic kidney disease", "ACE inhibitors / ARBs (hyperkalemia risk)", "Potassium-sparing diuretics", "Addison's disease"],
+        sport_specific_notes={
+            "endurance": "Sweat K+ loss ~150–300mg/L; replace with electrolyte drinks in prolonged events",
+            "combat_sports": "Muscle cramp prevention; important during weight cuts (diuretic use)",
+            "strength": "Supports intracellular osmolarity for pump and cell volumization",
+        },
+        evidence="🟢 Strong for BP reduction and cardiovascular health at AI levels",
+        mechanism="Primary intracellular cation (~98% of body potassium). Maintains membrane potential, "
+                  "drives Na+/K+ ATPase (accounts for ~25% of basal metabolic rate), regulates acid-base balance, "
+                  "and supports muscle contraction. Opposes sodium's BP-raising effect. "
+                  "Most humans consume ~60% of AI — athletes need more due to sweat losses.",
+        key_references=[
+            "Aburto et al. (2013) BMJ — Potassium intake and cardiovascular outcomes",
+            "Maughan et al. (2007) Scand J Med Sci Sports — Electrolyte losses in endurance sport",
+        ],
+    ),
+
+    "sodium_bicarbonate": DosingProtocol(
+        name="Sodium Bicarbonate",
+        category="ergogenic",
+        loading_dose="0.3g/kg, 60–90 min pre-exercise (serial loading: 0.1g/kg × 3 doses over 90 min to reduce GI issues)",
+        maintenance_dose="0.3g/kg acute; or chronic loading 0.5g/kg/d split across meals for 3–5 days",
+        timing="60–90 min pre-exercise (acute); or chronic loading 3–5 days before competition",
+        duration="Acute (single dose) or short-term chronic (3–5 day loading)",
+        best_forms=["Sodium bicarbonate capsules (reduces GI distress vs. solution)",
+                    "Powder dissolved in water (faster absorption but more GI issues)"],
+        absorption_enhancers=["Co-ingest with small carb-rich meal (delays absorption, reduces GI distress)"],
+        absorption_inhibitors=[],
+        food_interaction="Take with small meal to reduce nausea; avoid carbonated beverages",
+        onset_time="Peak blood bicarbonate: 60–90 min post-ingestion",
+        washout="Renal clearance within 4–6 hours",
+        ul_or_noael="Acute dose >0.4g/kg significantly increases GI distress; no long-term UL established",
+        contraindications=["Hypertension (sodium load)", "Kidney disease", "Metabolic alkalosis",
+                           "Low-sodium diet prescriptions"],
+        sport_specific_notes={
+            "endurance": "Most effective for efforts lasting 1–7 min (high-intensity, glycolytic); e.g., 800m–1500m, rowing, 4km cycling TT",
+            "strength": "May enhance muscular endurance (rep count) at moderate loads; less effective for 1RM",
+            "combat_sports": "Enhances repeated high-intensity bout performance; useful for multi-round combat",
+        },
+        evidence="🟢 Strong — Well-established ergogenic effect in meta-analyses for high-intensity exercise",
+        mechanism="Increases blood buffering capacity (raises bicarbonate concentration and blood pH). "
+                  "Enhances efflux of H⁺ and lactate from working muscle via MCT1/MCT4 transporters "
+                  "(increased extracellular pH gradient). Delays intramuscular acidosis during glycolytic "
+                  "exercise, extending time to fatigue at intensities above lactate threshold",
+        key_references=[
+            "Carr et al. (2011) IJSN — Sodium bicarbonate and exercise performance meta-analysis",
+            "McNaughton et al. (2016) Sports Med — Sodium bicarbonate position stand",
+        ],
+    ),
 }
 
 # ── Aliases ──────────────────────────────────────────────────────────────────
@@ -917,6 +1256,32 @@ SUPPLEMENT_ALIASES: dict[str, str] = {
     "meriva": "curcumin",
     "theracurmin": "curcumin",
     "flavonoid": "quercetin",
+    "rhodiola rosea": "rhodiola",
+    "roseroot": "rhodiola",
+    "shr-5": "rhodiola",
+    "fadogia": "fadogia_agrestis",
+    "eurycoma": "tongkat_ali",
+    "eurycoma longifolia": "tongkat_ali",
+    "lj100": "tongkat_ali",
+    "physta": "tongkat_ali",
+    "ps": "phosphatidylserine",
+    "phosphatidyl serine": "phosphatidylserine",
+    "berberine hcl": "berberine",
+    "dihydroberberine": "berberine",
+    "pineapple enzyme": "bromelain",
+    "alpha-gpc": "choline",
+    "cdp-choline": "choline",
+    "citicoline": "choline",
+    "choline bitartrate": "choline",
+    "phosphatidylcholine": "choline",
+    "n-acetylcysteine": "nac",
+    "n-acetyl cysteine": "nac",
+    "cysteine": "nac",
+    "se": "selenium",
+    "selenomethionine": "selenium",
+    "k": "potassium",
+    "potassium citrate": "potassium",
+    "potassium chloride": "potassium",
 }
 
 

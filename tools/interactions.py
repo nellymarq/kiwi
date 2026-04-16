@@ -395,6 +395,57 @@ INTERACTION_DB: list[Interaction] = [
         recommendation="AIM-HIGH trial showed no added cardiovascular benefit from combination. Not recommended for routine use; monitor CK/AST/ALT if combined by physician.",
         sources=["AIM-HIGH Investigators 2011 NEJM", "HPS2-THRIVE Collaborative Group 2014 NEJM"],
     ),
+
+    # ── Food-Drug and Food-Nutrient Interactions ────────────────────────────
+
+    Interaction(
+        compound_a="grapefruit", compound_b="statins",
+        severity="caution",
+        mechanism="Grapefruit furanocoumarins inhibit intestinal CYP3A4, increasing plasma statin levels 2-15x depending on statin. Risk of myopathy, rhabdomyolysis.",
+        evidence_tier="🟢",
+        recommendation="Avoid grapefruit juice with simvastatin, atorvastatin, lovastatin. Pravastatin, rosuvastatin, and fluvastatin are safer choices.",
+        sources=["Bailey et al. 2013 CMAJ — Grapefruit-medication interactions"],
+    ),
+    Interaction(
+        compound_a="grapefruit", compound_b="calcium channel blockers",
+        severity="caution",
+        mechanism="CYP3A4 inhibition increases bioavailability of felodipine, nifedipine, amlodipine. Risk of hypotension, peripheral edema.",
+        evidence_tier="🟢",
+        recommendation="Avoid grapefruit within 4 hours of dihydropyridine CCBs. Verify with pharmacist for specific medication.",
+        sources=["Bailey et al. 1991 Lancet — Original grapefruit-felodipine interaction"],
+    ),
+    Interaction(
+        compound_a="calcium", compound_b="tetracycline",
+        severity="caution",
+        mechanism="Calcium chelates with tetracycline antibiotics in GI tract, forming insoluble complexes that reduce antibiotic absorption by 50-80%.",
+        evidence_tier="🟢",
+        recommendation="Separate calcium supplements and dairy by 2-3 hours from tetracycline, doxycycline, or quinolone antibiotics.",
+        sources=["Neuvonen 1976 Drugs — Divalent cation-tetracycline chelation"],
+    ),
+    Interaction(
+        compound_a="cruciferous vegetables", compound_b="warfarin",
+        severity="monitor",
+        mechanism="Kale, spinach, broccoli, Brussels sprouts contain vitamin K which antagonizes warfarin. Inconsistent intake causes INR fluctuation.",
+        evidence_tier="🟢",
+        recommendation="Consistency over avoidance — maintain stable daily vitamin K intake. Inform prescriber before major dietary changes.",
+        sources=["Schurgers et al. 2004 Thromb Haemost"],
+    ),
+    Interaction(
+        compound_a="caffeine", compound_b="theophylline",
+        severity="caution",
+        mechanism="Caffeine is structurally similar to theophylline; both metabolized by CYP1A2. Additive effects on heart rate, BP, tremor, insomnia.",
+        evidence_tier="🟢",
+        recommendation="Reduce caffeine to <100mg/d in patients on theophylline for asthma/COPD. Monitor for toxicity signs.",
+        sources=["Carrillo & Benitez 2000 Clin Pharmacokinet"],
+    ),
+    Interaction(
+        compound_a="high-protein meal", compound_b="levodopa",
+        severity="caution",
+        mechanism="Large neutral amino acids compete with levodopa for the same BBB transporter. High-protein meals can reduce levodopa brain uptake by 30-50%.",
+        evidence_tier="🟢",
+        recommendation="Take levodopa 30 min before meals or 60 min after. Consider protein redistribution diet (most protein at dinner) for Parkinson's patients.",
+        sources=["Nutt et al. 1984 NEJM — Protein-levodopa interaction"],
+    ),
 ]
 
 # Build lookup index for fast searching

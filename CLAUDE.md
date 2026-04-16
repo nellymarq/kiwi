@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - Launch: `python3 kiwi.py`
-- Tests: `python3 -m pytest tests/ -x -q` (1005 tests)
+- Tests: `python3 -m pytest tests/ -x -q` (1061 tests)
 - GitHub: `nellymarq/kiwi`
 - Always run tests before committing code changes.
 
@@ -35,6 +35,8 @@ All deduplicated by DOI, merged into a single context block for Claude.
 - **Meal plan generator** — macro-calibrated daily plans with nutrient timing and shopping lists
 - **Training plan generator** — Prilepin-aligned periodized blocks with monitoring + red flags
 - **Auto-quality triage** — heuristic study design classification and flags for rapid paper screening
+- **Effect size calculator** — Cohen's d, Hedges' g, mean difference, RR, OR, NNT from raw study data
+- **PDF full-text reader** — downloads OA PDFs via Unpaywall, extracts text with pypdf for deep reading
 - **Ralph Wiggum Loop** — 5-dimension critique (grounding, hierarchy, mechanism, logic, uncertainty)
 - **Evidence Synthesis Agent** — structured multi-paper review with consensus/contradiction analysis
 - **N-of-1 Protocol Designer** — rigorous single-subject experimental design

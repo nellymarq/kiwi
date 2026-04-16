@@ -26,6 +26,8 @@ EXPECTED_SUPPLEMENTS = [
     "citrulline", "taurine", "tyrosine", "melatonin", "zinc", "l_carnitine",
     "glycerol", "collagen", "sodium_bicarbonate",
     "vitamin_c", "vitamin_b12", "folate", "probiotics", "curcumin", "quercetin",
+    "rhodiola", "fadogia_agrestis", "tongkat_ali", "phosphatidylserine",
+    "berberine", "bromelain", "choline", "nac", "selenium", "potassium",
 ]
 
 
