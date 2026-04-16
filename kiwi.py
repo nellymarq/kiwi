@@ -126,6 +126,10 @@ from agents.training_plan import TrainingPlanAgent
 from tools.auto_quality import auto_assess as auto_quality_assess
 from tools.effect_size import cohens_d, hedges_g, mean_difference, relative_risk, odds_ratio, number_needed_to_treat
 from tools.pdf_reader import read_pdf as read_oa_pdf
+from tools.cost_tracker import SessionCostTracker
+from tools.team_analytics import format_team_summary
+from memory.watch_list import WatchList
+from agents.systematic_review import SystematicReviewAgent
 from tools.supplements import resolve_supplement, SUPPLEMENT_DB
 from tools.interactions import lookup_interactions
 
@@ -311,6 +315,9 @@ class Kiwi:
         self.recommender_agent = RecommenderAgent(self.client)
         self.meal_plan_agent = MealPlanAgent(self.client)
         self.training_plan_agent = TrainingPlanAgent(self.client)
+        self.systematic_review_agent = SystematicReviewAgent(self.client)
+        self.watch_list = WatchList(client=self.active_client_name)
+        self.cost = SessionCostTracker()
         self.pubmed = PubMedClient() if use_pubmed else None
         self.openalex = OpenAlexClient() if use_pubmed else None
         self.trials = ClinicalTrialsClient() if use_pubmed else None
@@ -623,7 +630,8 @@ class Kiwi:
                         "[bold]Deep Research:[/bold] /synthesize <claim> · /n_of_1 <q> · /grade · /quality · /recommend <finding>\n"
                         "[bold]Delivery:[/bold]  /pdf · /accepted [note] · /rejected [reason] · /preferences\n"
                         "[bold]Planning:[/bold]  /meal_plan [days] · /training_plan [sport] [weeks] · /autoquality <title>\n"
-                        "[bold]Analytics:[/bold] /effect <m1 sd1 n1 m2 sd2 n2> · /readpdf <doi>\n"
+                        "[bold]Analytics:[/bold] /effect <m1 sd1 n1 m2 sd2 n2> · /readpdf <doi> · /cost · /team\n"
+                        "[bold]Orchestration:[/bold] /review <topic> · /watch <topic> · /watched · /digest\n"
                         "[bold]Clients:[/bold]    /clients · /new_client <name> · /switch_client <name> · /delete_client <name>\n"
                         "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords> · /stale\n"
                         "[bold]Threads:[/bold]  /thread new|use|list <name>\n"
@@ -694,6 +702,7 @@ class Kiwi:
                         self.memory = KiwiMemory(client=self.active_client_name)
                         self.profile = UserProfile(client=self.active_client_name)
                         self.preferences = PreferencesStore(client=self.active_client_name)
+                        self.watch_list = WatchList(client=self.active_client_name)
                         self.messages = []
                         console.print(f"[dim]  Switched to client: [cyan]{self.active_client_name}[/cyan][/dim]")
                     else:
@@ -954,6 +963,118 @@ class Kiwi:
                                 "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
                             })
                             console.print(result)
+
+                elif q_lower.startswith("/review "):
+                    topic = query[8:].strip()
+                    if topic:
+                        console.print(f"[dim]  Conducting systematic review on: '{topic}'...[/dim]")
+                        papers_ctx = fetch_literature_context(
+                            topic, self.pubmed, self.openalex, self.epmc, self.semantic,
+                            max_pubmed=10, max_openalex=8, max_epmc=8, max_semantic=8,
+                            years_back=10,
+                        )
+                        if not papers_ctx:
+                            console.print("[dim red]  No literature retrieved. Cannot conduct review.[/dim red]")
+                        else:
+                            console.print("[dim]  Running PRISMA-compliant systematic review...[/dim]\n")
+                            result = await self.systematic_review_agent.run({
+                                "question": topic,
+                                "papers_context": papers_ctx,
+                                "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
+                            })
+                            console.print(result)
+
+                elif q_lower.startswith("/watch "):
+                    topic = query[7:].strip()
+                    if topic:
+                        if self.watch_list.add(topic):
+                            console.print(f"[dim]  Watching: [cyan]{topic}[/cyan]. Run /digest to get updates.[/dim]")
+                        else:
+                            console.print(f"[dim]  Already watching '{topic}'.[/dim]")
+
+                elif q_lower.startswith("/unwatch "):
+                    topic = query[9:].strip()
+                    if self.watch_list.remove(topic):
+                        console.print(f"[dim]  Removed watch on: {topic}[/dim]")
+                    else:
+                        console.print(f"[dim]  Not in watch list: {topic}[/dim]")
+
+                elif q_lower == "/watched" or q_lower == "/watchlist":
+                    topics = self.watch_list.list_topics()
+                    if not topics:
+                        console.print("[dim]  No watched topics. Add with /watch <topic>[/dim]")
+                    else:
+                        lines = []
+                        for t in topics:
+                            last = t.get("last_digest_ts", "never")[:10] if t.get("last_digest_ts") else "never digested"
+                            lines.append(f"  • [cyan]{t['topic']}[/cyan] — added {t.get('added_ts', '')[:10]}, last digest: {last}")
+                        console.print(Panel(
+                            "\n".join(lines),
+                            title="[cyan]Watched Topics[/cyan]",
+                            border_style="cyan", box=box.SIMPLE,
+                        ))
+
+                elif q_lower == "/digest":
+                    topics = self.watch_list.list_topics()
+                    if not topics:
+                        console.print("[dim]  No watched topics. Add with /watch <topic>[/dim]")
+                    elif not (self.pubmed or self.openalex):
+                        console.print("[dim]  Literature sources disabled. Run without --no-pubmed.[/dim]")
+                    else:
+                        console.print(f"[dim]  Running digest for {len(topics)} watched topic(s)...[/dim]\n")
+                        for t in topics:
+                            topic_text = t["topic"]
+                            previous_seen = self.watch_list.get_last_seen(topic_text)
+                            keywords = " ".join(topic_text.split()[:6])
+
+                            all_items = []
+                            all_dois = []
+
+                            if self.pubmed:
+                                arts = self.pubmed.search_and_fetch(keywords, max_results=5, years_back=2)
+                                for a in arts:
+                                    doi_l = (a.doi or "").lower()
+                                    is_new = doi_l and doi_l not in previous_seen
+                                    all_items.append((is_new, a.title, a.authors, a.year, a.doi, "PubMed"))
+                                    if doi_l:
+                                        all_dois.append(doi_l)
+
+                            if self.openalex:
+                                works = self.openalex.search_sports_nutrition(keywords, max_results=5, years_back=2)
+                                for w in works:
+                                    doi_l = (w.doi or "").lower()
+                                    is_new = doi_l and doi_l not in previous_seen
+                                    all_items.append((is_new, w.title, w.authors, str(w.year), w.doi, "OpenAlex"))
+                                    if doi_l:
+                                        all_dois.append(doi_l)
+
+                            new_items = [x for x in all_items if x[0]]
+                            console.print(f"[bold]Topic: {topic_text}[/bold] — {len(new_items)} new, {len(all_items) - len(new_items)} already seen")
+                            for is_new, title, authors, year, doi, source in new_items[:8]:
+                                badge = "[green]NEW[/green]"
+                                author_str = ", ".join(authors[:2]) if authors else "?"
+                                console.print(f"  {badge} {title[:100]}")
+                                console.print(f"    [dim]{author_str} ({year}) · {source} · DOI: {doi}[/dim]")
+
+                            self.watch_list.mark_digest_run(topic_text, all_dois)
+                            console.print()
+
+                        self.watch_list.update_global_digest_ts()
+
+                elif q_lower == "/cost":
+                    console.print(Panel(
+                        self.cost.summary(),
+                        title="[cyan]Session API Cost[/cyan]",
+                        border_style="cyan", box=box.SIMPLE,
+                    ))
+
+                elif q_lower == "/team" or q_lower.startswith("/team "):
+                    summary = format_team_summary()
+                    console.print(Panel(
+                        summary,
+                        title="[cyan]Team Analytics[/cyan]",
+                        border_style="cyan", box=box.SIMPLE,
+                    ))
 
                 elif q_lower.startswith("/n_of_1 ") or q_lower.startswith("/nof1 "):
                     offset = 8 if q_lower.startswith("/n_of_1 ") else 6

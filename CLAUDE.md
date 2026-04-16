@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - Launch: `python3 kiwi.py`
-- Tests: `python3 -m pytest tests/ -x -q` (1061 tests)
+- Tests: `python3 -m pytest tests/ -x -q` (1093 tests)
 - GitHub: `nellymarq/kiwi`
 - Always run tests before committing code changes.
 
@@ -37,6 +37,10 @@ All deduplicated by DOI, merged into a single context block for Claude.
 - **Auto-quality triage** — heuristic study design classification and flags for rapid paper screening
 - **Effect size calculator** — Cohen's d, Hedges' g, mean difference, RR, OR, NNT from raw study data
 - **PDF full-text reader** — downloads OA PDFs via Unpaywall, extracts text with pypdf for deep reading
+- **PRISMA systematic review** — orchestrated multi-phase review with GRADE assessment (`/review <topic>`)
+- **Living reviews** — subscribe to topics, auto-detect new literature (`/watch`, `/digest`)
+- **Cost tracker** — per-session API token + USD tracking (`/cost`)
+- **Team analytics** — cross-client metrics: supplement frequency, inactive clients, incomplete profiles (`/team`)
 - **Ralph Wiggum Loop** — 5-dimension critique (grounding, hierarchy, mechanism, logic, uncertainty)
 - **Evidence Synthesis Agent** — structured multi-paper review with consensus/contradiction analysis
 - **N-of-1 Protocol Designer** — rigorous single-subject experimental design
