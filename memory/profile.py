@@ -12,7 +12,9 @@ import json
 from pathlib import Path
 from typing import Literal, Any
 
-PROFILE_PATH = Path.home() / ".kiwi" / "profile.json"
+from . import client_manager
+
+PROFILE_PATH = Path.home() / ".kiwi" / "profile.json"  # kept for backwards compatibility
 
 Sex = Literal["male", "female", "other"]
 ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active"]
@@ -51,20 +53,26 @@ class UserProfile:
         "health_conditions": list,
     }
 
-    def __init__(self):
+    def __init__(self, client: str | None = None):
+        self.client = client
         self.data: dict[str, Any] = self._load()
 
+    def _path(self) -> Path:
+        return client_manager.profile_path(self.client)
+
     def _load(self) -> dict[str, Any]:
-        if PROFILE_PATH.exists():
+        path = self._path()
+        if path.exists():
             try:
-                return json.loads(PROFILE_PATH.read_text())
+                return json.loads(path.read_text())
             except (json.JSONDecodeError, OSError):
                 pass
         return {}
 
     def save(self):
-        PROFILE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        PROFILE_PATH.write_text(json.dumps(self.data, indent=2))
+        path = self._path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(self.data, indent=2))
 
     def set(self, key: str, value: Any) -> bool | str:
         """Set a profile field. Returns True on success, error string on validation failure, False if unknown field."""

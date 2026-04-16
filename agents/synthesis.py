@@ -53,10 +53,15 @@ OUTPUT FORMAT
 - **Female athletes:** ...
 - **Older adults / rehab:** ...
 
-### Evidence Quality Assessment (GRADE)
+### Evidence Quality Assessment (GRADE + methodology tools)
 **Starting design:** [RCTs / systematic review / etc.]
-**Downgrades:**
-- [Risk of bias: specific example]
+**Methodology quality (per study tool):**
+- RoB 2 concerns for RCTs: [selection, performance, detection, attrition, reporting bias examples]
+- ROBINS-I concerns for observational: [confounding, selection, classification examples]
+- AMSTAR 2 concerns for systematic reviews: [search strategy, duplicate extraction, RoB assessment]
+
+**GRADE Downgrades:**
+- [Risk of bias: specific example citing methodology concerns above]
 - [Inconsistency: specific example]
 - [Indirectness: specific example]
 - [Imprecision: specific example]

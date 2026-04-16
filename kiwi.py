@@ -48,6 +48,7 @@ from tools.europepmc import EuropePMCClient
 from tools.unpaywall import UnpaywallClient
 from tools.semantic_scholar import SemanticScholarClient
 from tools.grade import assess as grade_assess, GradeInputs, assess_from_evidence_tier
+from tools.quality_assessment import format_checklist as quality_checklist
 from agents.synthesis import SynthesisAgent
 from agents.n_of_1 import NOf1Agent
 from tools.calculations import SportsCalc
@@ -116,6 +117,7 @@ from tools.mental_performance import (
 )
 from memory.store import KiwiMemory
 from memory.profile import UserProfile
+from memory import client_manager
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -207,6 +209,8 @@ def display_rwl_checkpoint(critique_data: dict, score: float, refined: bool = Fa
 
 DEFAULT_PUBMED_MAX_RESULTS = 6
 DEFAULT_OPENALEX_MAX_RESULTS = 4
+DEFAULT_EPMC_MAX_RESULTS = 3
+DEFAULT_SS_MAX_RESULTS = 3
 DEFAULT_YEARS_BACK = 8
 
 
@@ -214,11 +218,15 @@ def fetch_literature_context(
     query: str,
     pubmed: PubMedClient | None,
     openalex: OpenAlexClient | None,
+    epmc: "EuropePMCClient | None" = None,
+    semantic: "SemanticScholarClient | None" = None,
     max_pubmed: int = DEFAULT_PUBMED_MAX_RESULTS,
     max_openalex: int = DEFAULT_OPENALEX_MAX_RESULTS,
+    max_epmc: int = DEFAULT_EPMC_MAX_RESULTS,
+    max_semantic: int = DEFAULT_SS_MAX_RESULTS,
     years_back: int = DEFAULT_YEARS_BACK,
 ) -> str:
-    """Search PubMed + OpenAlex and return merged, deduplicated context block."""
+    """Search all configured literature sources, dedupe by DOI, return merged context."""
     keywords = " ".join(query.split()[:6])
     blocks = []
     seen_dois: set[str] = set()
@@ -238,11 +246,34 @@ def fetch_literature_context(
     if openalex:
         with console.status("[dim cyan]  Searching OpenAlex (sports nutrition journals)...[/dim cyan]", spinner="earth"):
             works = openalex.search_sports_nutrition(keywords, max_results=max_openalex + 2, years_back=years_back)
-        # Deduplicate against PubMed by DOI
         unique_works = [w for w in works if not w.doi or w.doi.lower() not in seen_dois][:max_openalex]
         if unique_works:
-            console.print(f"[dim]  OpenAlex: {len(unique_works)} additional articles (JISSN, BJSM, Nutrients, etc.)[/dim]")
+            for w in unique_works:
+                if w.doi:
+                    seen_dois.add(w.doi.lower())
+            console.print(f"[dim]  OpenAlex: {len(unique_works)} additional articles[/dim]")
             blocks.append(openalex.build_context_block(unique_works))
+
+    # Europe PMC search (open access full-text focus)
+    if epmc:
+        with console.status("[dim cyan]  Searching Europe PMC (open access full-text)...[/dim cyan]", spinner="earth"):
+            epmc_articles = epmc.search(keywords, max_results=max_epmc + 2, years_back=years_back, open_access_only=True)
+        unique_epmc = [a for a in epmc_articles if not a.doi or a.doi.lower() not in seen_dois][:max_epmc]
+        if unique_epmc:
+            for a in unique_epmc:
+                if a.doi:
+                    seen_dois.add(a.doi.lower())
+            console.print(f"[dim]  Europe PMC: {len(unique_epmc)} additional OA articles[/dim]")
+            blocks.append(epmc.build_context_block(unique_epmc))
+
+    # Semantic Scholar search (TLDR summaries for rapid triage)
+    if semantic:
+        with console.status("[dim cyan]  Searching Semantic Scholar (TLDR summaries)...[/dim cyan]", spinner="earth"):
+            ss_papers = semantic.search(keywords, max_results=max_semantic + 2, years_back=years_back)
+        unique_ss = [p for p in ss_papers if not p.doi or p.doi.lower() not in seen_dois][:max_semantic]
+        if unique_ss:
+            console.print(f"[dim]  Semantic Scholar: {len(unique_ss)} additional papers with TLDRs[/dim]")
+            blocks.append(semantic.build_context_block(unique_ss))
 
     if not blocks:
         console.print("[dim]  No recent literature found for this query[/dim]")
@@ -262,8 +293,10 @@ class Kiwi:
     def __init__(self, use_pubmed: bool = True):
         self.client = anthropic.AsyncAnthropic()
         self.orchestrator = KiwiOrchestrator(self.client)
-        self.memory = KiwiMemory()
-        self.profile = UserProfile()
+        client_manager.ensure_setup()
+        self.active_client_name = client_manager.get_active_client()
+        self.memory = KiwiMemory(client=self.active_client_name)
+        self.profile = UserProfile(client=self.active_client_name)
         self.pubmed = PubMedClient() if use_pubmed else None
         self.openalex = OpenAlexClient() if use_pubmed else None
         self.trials = ClinicalTrialsClient() if use_pubmed else None
@@ -299,7 +332,9 @@ class Kiwi:
         # Literature pre-fetch (PubMed + OpenAlex)
         pubmed_context = ""
         if self.pubmed or self.openalex:
-            pubmed_context = fetch_literature_context(query, self.pubmed, self.openalex)
+            pubmed_context = fetch_literature_context(
+                query, self.pubmed, self.openalex, self.epmc, self.semantic,
+            )
 
         # Profile + memory context
         profile_summary = self.profile.to_summary()
@@ -553,6 +588,8 @@ class Kiwi:
             try:
                 console.print()
                 prompt = f"[bold cyan]Kiwi[/bold cyan]"
+                if self.active_client_name and self.active_client_name != "self":
+                    prompt += f"[dim] ({self.active_client_name})[/dim]"
                 if self.active_thread:
                     prompt += f"[dim] [{self.active_thread}][/dim]"
                 prompt += "[bold cyan] >[/bold cyan] "
@@ -569,7 +606,8 @@ class Kiwi:
                     help_text = (
                         "[bold]Research:[/bold]  Just type a question · /protocol <query> · /plan <query>\n"
                         "[bold]Literature:[/bold] /pubmed · /openalex · /trials · /tldr · /fulltext <doi> · /citedby <doi>\n"
-                        "[bold]Deep Research:[/bold] /synthesize <claim> · /n_of_1 <question> · /grade <tier>\n"
+                        "[bold]Deep Research:[/bold] /synthesize <claim> · /n_of_1 <question> · /grade <tier> · /quality <tool>\n"
+                        "[bold]Clients:[/bold]    /clients · /new_client <name> · /switch_client <name> · /delete_client <name>\n"
                         "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords> · /stale\n"
                         "[bold]Threads:[/bold]  /thread new|use|list <name>\n"
                         "[bold]Profile:[/bold]  /profile · /profile set <field> <value>\n"
@@ -605,6 +643,49 @@ class Kiwi:
                         f"Memory saved to {Path.home() / '.kiwi'}[/dim]"
                     )
                     break
+
+                elif q_lower == "/clients" or q_lower.startswith("/clients "):
+                    clients = client_manager.list_clients()
+                    lines = []
+                    for c in clients:
+                        marker = " [bold green]●[/bold green] ACTIVE" if c["is_active"] else ""
+                        desc = f" — {c['description']}" if c["description"] else ""
+                        lines.append(f"  [cyan]{c['name']}[/cyan]{marker}{desc}")
+                    console.print(Panel(
+                        "\n".join(lines) if lines else "[dim]No clients[/dim]",
+                        title="[cyan]Clients[/cyan]",
+                        border_style="cyan",
+                        box=box.SIMPLE,
+                    ))
+                    console.print("[dim]  /new_client <name> [description]   /switch_client <name>   /delete_client <name>[/dim]")
+
+                elif q_lower.startswith("/new_client "):
+                    parts = query[12:].strip().split(maxsplit=1)
+                    if parts:
+                        name = parts[0]
+                        desc = parts[1] if len(parts) > 1 else ""
+                        ok, msg = client_manager.create_client(name, desc)
+                        color = "dim" if ok else "dim red"
+                        console.print(f"[{color}]  {msg}[/{color}]")
+                        if ok:
+                            console.print(f"[dim]  Switch with: /switch_client {client_manager._normalize_name(name)}[/dim]")
+
+                elif q_lower.startswith("/switch_client "):
+                    name = query[15:].strip()
+                    if client_manager.set_active_client(name):
+                        self.active_client_name = client_manager.get_active_client()
+                        self.memory = KiwiMemory(client=self.active_client_name)
+                        self.profile = UserProfile(client=self.active_client_name)
+                        self.messages = []
+                        console.print(f"[dim]  Switched to client: [cyan]{self.active_client_name}[/cyan][/dim]")
+                    else:
+                        console.print(f"[dim red]  Client '{name}' not found. Use /clients to list.[/dim red]")
+
+                elif q_lower.startswith("/delete_client "):
+                    name = query[15:].strip()
+                    ok, msg = client_manager.delete_client(name)
+                    color = "dim" if ok else "dim red"
+                    console.print(f"[{color}]  {msg}[/{color}]")
 
                 elif q_lower == "/clear":
                     self.messages = []
@@ -839,18 +920,11 @@ class Kiwi:
                     claim = query[12:].strip()
                     if claim:
                         console.print(f"[dim]  Gathering evidence for synthesis: '{claim}'...[/dim]")
-                        # Pull from multiple sources for the claim
+                        # Pull from all 5 sources with larger limits for deep synthesis
                         papers_ctx = fetch_literature_context(
-                            claim, self.pubmed, self.openalex,
+                            claim, self.pubmed, self.openalex, self.epmc, self.semantic,
+                            max_pubmed=8, max_openalex=5, max_epmc=5, max_semantic=5,
                         )
-                        if self.epmc:
-                            epmc_articles = self.epmc.search(claim, max_results=4, open_access_only=True)
-                            if epmc_articles:
-                                papers_ctx += "\n\n" + self.epmc.build_context_block(epmc_articles)
-                        if self.semantic:
-                            ss_papers = self.semantic.search(claim, max_results=4)
-                            if ss_papers:
-                                papers_ctx += "\n\n" + self.semantic.build_context_block(ss_papers)
 
                         if not papers_ctx:
                             console.print("[dim red]  No literature found for this claim.[/dim red]")
@@ -869,7 +943,9 @@ class Kiwi:
                     if question:
                         research_ctx = ""
                         if self.pubmed or self.openalex:
-                            research_ctx = fetch_literature_context(question, self.pubmed, self.openalex)
+                            research_ctx = fetch_literature_context(
+                                question, self.pubmed, self.openalex, self.epmc, self.semantic,
+                            )
                         console.print("[dim]  Designing n-of-1 experimental protocol...[/dim]\n")
                         result = await self.n_of_1_agent.run({
                             "question": question,
@@ -877,6 +953,27 @@ class Kiwi:
                             "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
                         })
                         console.print(result)
+
+                elif q_lower.startswith("/quality"):
+                    tool = query[8:].strip() if len(query) > 8 else ""
+                    if not tool:
+                        console.print(
+                            "[dim]  Usage: /quality <tool>  where tool = RoB2 | ROBINS-I | AMSTAR2[/dim]\n"
+                            "[dim]  RoB2 — for randomized trials (Cochrane 2019)[/dim]\n"
+                            "[dim]  ROBINS-I — for non-randomized observational studies[/dim]\n"
+                            "[dim]  AMSTAR2 — for systematic reviews/meta-analyses[/dim]"
+                        )
+                    else:
+                        try:
+                            checklist = quality_checklist(tool)
+                            console.print(Panel(
+                                checklist,
+                                title=f"[cyan]Quality Assessment Checklist[/cyan]",
+                                border_style="cyan",
+                                box=box.SIMPLE,
+                            ))
+                        except ValueError as e:
+                            console.print(f"[dim red]  {e}[/dim red]")
 
                 elif q_lower.startswith("/grade "):
                     tier = query[7:].strip()

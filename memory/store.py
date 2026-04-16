@@ -15,7 +15,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from . import client_manager
+
 KIWI_DIR = Path.home() / ".kiwi"
+# Legacy paths kept for test compatibility — new code uses client_manager
 MEMORY_JSON = KIWI_DIR / "memory.json"
 MEMORY_MD = KIWI_DIR / "memory.md"
 ARCHIVE_JSON = KIWI_DIR / "episodic_archive.json"
@@ -37,14 +40,32 @@ class KiwiMemory:
       total_queries:    int
     """
 
-    def __init__(self):
+    def __init__(self, client: str | None = None):
+        self.client = client
         KIWI_DIR.mkdir(parents=True, exist_ok=True)
         self.data = self._load()
 
+    def _memory_path(self) -> Path:
+        if self.client is not None:
+            return client_manager.memory_path(self.client)
+        # When no client specified, use module-level MEMORY_JSON (supports test monkeypatching)
+        return MEMORY_JSON
+
+    def _memory_md_path(self) -> Path:
+        if self.client is not None:
+            return client_manager.memory_md_path(self.client)
+        return MEMORY_MD
+
+    def _archive_path(self) -> Path:
+        if self.client is not None:
+            return client_manager.archive_path(self.client)
+        return ARCHIVE_JSON
+
     def _load(self) -> dict[str, Any]:
-        if MEMORY_JSON.exists():
+        path = self._memory_path()
+        if path.exists():
             try:
-                return json.loads(MEMORY_JSON.read_text())
+                return json.loads(path.read_text())
             except (json.JSONDecodeError, OSError):
                 pass
         return self._default()
@@ -63,7 +84,9 @@ class KiwiMemory:
         }
 
     def save(self):
-        MEMORY_JSON.write_text(json.dumps(self.data, indent=2, default=str))
+        path = self._memory_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(self.data, indent=2, default=str))
 
     # ── Episodic Memory ──────────────────────────────────────────────────────
 
@@ -281,21 +304,24 @@ class KiwiMemory:
 
     def _archive_episodic(self, entries: list[dict]):
         """Move overflow episodic entries to archive file."""
+        path = self._archive_path()
         archive = []
-        if ARCHIVE_JSON.exists():
+        if path.exists():
             try:
-                archive = json.loads(ARCHIVE_JSON.read_text())
+                archive = json.loads(path.read_text())
             except (json.JSONDecodeError, OSError):
                 pass
         archive.extend(entries)
-        ARCHIVE_JSON.write_text(json.dumps(archive, indent=2, default=str))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(archive, indent=2, default=str))
 
     def search_archive(self, keywords: list[str], max_results: int = 10) -> list[dict]:
         """Search archived episodic memory by keywords."""
-        if not ARCHIVE_JSON.exists():
+        path = self._archive_path()
+        if not path.exists():
             return []
         try:
-            archive = json.loads(ARCHIVE_JSON.read_text())
+            archive = json.loads(path.read_text())
         except (json.JSONDecodeError, OSError):
             return []
         results = []
@@ -313,10 +339,11 @@ class KiwiMemory:
 
     def archive_stats(self) -> dict:
         """Return archive size info."""
-        if not ARCHIVE_JSON.exists():
+        path = self._archive_path()
+        if not path.exists():
             return {"archived_entries": 0}
         try:
-            archive = json.loads(ARCHIVE_JSON.read_text())
+            archive = json.loads(path.read_text())
             return {"archived_entries": len(archive)}
         except (json.JSONDecodeError, OSError):
             return {"archived_entries": 0}
@@ -353,7 +380,9 @@ class KiwiMemory:
     # ── Human-Readable Log ───────────────────────────────────────────────────
 
     def _append_md(self, title: str, content: str):
-        if not MEMORY_MD.exists():
-            MEMORY_MD.write_text("# Kiwi Research Memory\n\n")
-        with open(MEMORY_MD, "a") as f:
+        path = self._memory_md_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            path.write_text("# Kiwi Research Memory\n\n")
+        with open(path, "a") as f:
             f.write(f"\n## {title}\n\n{content.strip()}\n\n---\n")

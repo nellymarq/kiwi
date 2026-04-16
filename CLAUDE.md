@@ -2,9 +2,15 @@
 
 ## Quick Reference
 - Launch: `python3 kiwi.py`
-- Tests: `python3 -m pytest tests/ -x -q` (940 tests)
+- Tests: `python3 -m pytest tests/ -x -q` (967 tests)
 - GitHub: `nellymarq/kiwi`
 - Always run tests before committing code changes.
+
+## Multi-Client Support
+- Each client has isolated profile + memory at `~/.kiwi/clients/<name>/`
+- Default client `self` is created automatically with legacy data migration
+- Active client shown in REPL prompt (e.g., `Kiwi (athlete_a) >`)
+- Commands: `/clients`, `/new_client <name>`, `/switch_client <name>`, `/delete_client <name>`
 
 ## Architecture
 - `agents/`: Planning, Critique/RWL, Protocol, Orchestrator, SportsAgent, **Synthesis** (multi-paper deep review), **NOf1Agent** (experimental design). All async, claude-opus-4-6.
@@ -22,6 +28,7 @@ All deduplicated by DOI, merged into a single context block for Claude.
 
 ## Research Methodology
 - **GRADE evidence grading** — formal certainty assessment (HIGH/MODERATE/LOW/VERY LOW) with explicit justification
+- **Methodology quality tools** — RoB 2 (RCTs), ROBINS-I (observational), AMSTAR 2 (systematic reviews)
 - **Ralph Wiggum Loop** — 5-dimension critique (grounding, hierarchy, mechanism, logic, uncertainty)
 - **Evidence Synthesis Agent** — structured multi-paper review with consensus/contradiction analysis
 - **N-of-1 Protocol Designer** — rigorous single-subject experimental design
