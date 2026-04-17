@@ -581,13 +581,14 @@ class BiomarkerInterpreter:
         if ref.critical_high and value >= ref.critical_high:
             return "CRITICAL_HIGH"
         if value < ref.low:
-            if ref.athletic_low_adj and value >= ref.athletic_low_adj:
-                return "ATHLETIC_LOW"
             return "LOW"
         if value > ref.high:
             if ref.athletic_high_adj and value <= ref.athletic_high_adj:
                 return "ATHLETIC_NORM"
             return "HIGH"
+        # Within standard range but below athletic threshold
+        if ref.athletic_low_adj and value < ref.athletic_low_adj:
+            return "ATHLETIC_LOW"
         return "NORMAL"
 
     def _advise(self, value: float, status: Status, ref: BiomarkerRef) -> tuple[str, str]:

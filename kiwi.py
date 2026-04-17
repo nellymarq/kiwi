@@ -138,6 +138,10 @@ from tools.supplements import resolve_supplement, SUPPLEMENT_DB, list_supplement
 from tools.interactions import lookup_interactions
 from memory.progress import ProgressTracker, KNOWN_METRICS
 from agents.stack_optimizer import StackOptimizerAgent
+from agents.risk_screen import RiskScreenAgent
+from agents.question_gen import QuestionGenAgent
+from tools.proactive import check_biomarker, format_proactive_actions
+from tools.contradiction import detect_contradictions, format_contradictions
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -324,6 +328,8 @@ class Kiwi:
         self.systematic_review_agent = SystematicReviewAgent(self.client)
         self.competition_prep_agent = CompetitionPrepAgent(self.client)
         self.stack_optimizer_agent = StackOptimizerAgent(self.client)
+        self.risk_screen_agent = RiskScreenAgent(self.client)
+        self.question_gen_agent = QuestionGenAgent(self.client)
         self.progress = ProgressTracker(client=self.active_client_name)
         self.watch_list = WatchList(client=self.active_client_name)
         self.cost = SessionCostTracker()
@@ -643,7 +649,7 @@ class Kiwi:
                         "[bold]Quality:[/bold]   /autoquality <title> · /quality <tool>\n"
                         "[bold]Analytics:[/bold] /effect <m1 sd1 n1 m2 sd2 n2> · /readpdf <doi> · /cost · /team\n"
                         "[bold]Progress:[/bold]  /track <metric> <value> · /trends <metric> · /dashboard\n"
-                        "[bold]Optimize:[/bold]  /optimize_stack · /onboard · /summary\n"
+                        "[bold]Optimize:[/bold]  /optimize_stack · /risk_screen · /suggest_research · /onboard · /summary\n"
                         "[bold]Orchestration:[/bold] /review <topic> · /watch <topic> · /watched · /digest\n"
                         "[bold]Clients:[/bold]    /clients · /new_client <name> · /switch_client <name> · /delete_client <name>\n"
                         "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords> · /stale\n"
@@ -1215,6 +1221,13 @@ class Kiwi:
                             unit = KNOWN_METRICS.get(metric, "")
                             console.print(f"[dim]  Tracked: {metric} = {value} {unit}"
                                           + (f" ({note})" if note else "") + "[/dim]")
+                            # Proactive: check if this biomarker triggers recommendations
+                            sex = self.profile.get("sex") or "male"
+                            current_supps = self.profile.get("current_supplements") or []
+                            actions = check_biomarker(metric, value, sex=sex, current_supplements=current_supps)
+                            if actions:
+                                console.print()
+                                console.print(format_proactive_actions(actions))
                         except ValueError:
                             console.print(f"[dim red]  Value must be numeric: /track {metric} <number>[/dim red]")
                     else:
@@ -1266,6 +1279,78 @@ class Kiwi:
                         "current_stack": current_stack,
                         "supplement_db_summary": db_summary,
                         "interaction_data": "",
+                    })
+                    console.print(result)
+
+                elif q_lower == "/risk_screen" or q_lower.startswith("/risk_screen "):
+                    notes = query[12:].strip() if len(query) > 12 else ""
+                    profile_summary = self.profile.to_summary()
+
+                    # Gather biomarker data from progress tracker
+                    biomarker_lines = []
+                    for m in self.progress.get_all_metrics():
+                        latest = self.progress.get_latest(m)
+                        if latest:
+                            biomarker_lines.append(f"  {m}: {latest['value']} {latest.get('unit', '')} ({latest.get('ts', '')[:10]})")
+                    biomarker_text = "\n".join(biomarker_lines) if biomarker_lines else "No biomarker data tracked"
+
+                    # Gather progress trends for key metrics
+                    progress_lines = []
+                    for m in ["weight", "rhr", "hrv_rmssd", "sleep_hours"]:
+                        history = self.progress.get_history(m, limit=7)
+                        if history:
+                            vals = [h["value"] for h in history]
+                            progress_lines.append(f"  {m} (last {len(vals)} readings): {' → '.join(f'{v:.1f}' for v in vals)}")
+                    progress_text = "\n".join(progress_lines) if progress_lines else "No progress trends available"
+
+                    console.print("[dim]  Running comprehensive risk screening...[/dim]\n")
+                    result = await self.risk_screen_agent.run({
+                        "profile_summary": profile_summary,
+                        "biomarker_data": biomarker_text,
+                        "progress_data": progress_text,
+                        "training_load": "",
+                        "notes": notes,
+                    })
+                    console.print(result)
+
+                elif q_lower == "/suggest_research" or q_lower.startswith("/suggest_research "):
+                    notes = query[17:].strip() if len(query) > 17 else ""
+                    profile_summary = self.profile.to_summary()
+                    current_supps = self.profile.get("current_supplements") or []
+
+                    # Biomarkers from progress
+                    biomarker_lines = []
+                    for m in self.progress.get_all_metrics():
+                        latest = self.progress.get_latest(m)
+                        if latest:
+                            biomarker_lines.append(f"  {m}: {latest['value']} {latest.get('unit', '')}")
+                    biomarker_text = "\n".join(biomarker_lines) if biomarker_lines else ""
+
+                    # Recent research history from memory
+                    recent = self.memory.get_recent_episodic(10)
+                    recent_text = "\n".join(
+                        f"  [{e.get('ts', '')[:10]}] {e.get('query', '')[:150]}"
+                        for e in recent
+                    ) if recent else "No prior research for this client"
+
+                    # Progress trends
+                    progress_lines = []
+                    for m in self.progress.get_all_metrics():
+                        history = self.progress.get_history(m, limit=5)
+                        if len(history) >= 2:
+                            first = history[0]["value"]
+                            last = history[-1]["value"]
+                            change = last - first
+                            progress_lines.append(f"  {m}: {first:.1f} → {last:.1f} ({change:+.1f})")
+                    progress_text = "\n".join(progress_lines) if progress_lines else ""
+
+                    console.print("[dim]  Analyzing data to generate research suggestions...[/dim]\n")
+                    result = await self.question_gen_agent.run({
+                        "profile_summary": profile_summary,
+                        "biomarker_data": biomarker_text,
+                        "current_stack": ", ".join(current_supps) if current_supps else "none",
+                        "recent_research": recent_text,
+                        "progress_data": progress_text,
                     })
                     console.print(result)
 

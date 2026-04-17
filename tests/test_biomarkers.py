@@ -92,21 +92,16 @@ def test_athletic_low_ferritin():
     # athletic_low_adj=30 means values ABOVE 30 are "athletic norm" for low...
     # Let me re-read the logic: if value < ref.low AND value >= ref.athletic_low_adj → ATHLETIC_LOW
     # ref.low=12, ref.athletic_low_adj=30
-    # 25 >= 12 (not low by standard), so should be NORMAL by standard
-    # Actually ferritin low=12, so 25 > 12 → NORMAL in standard range
-    assert result.status == "NORMAL"
+    # 25 is above standard low (12) but below athletic threshold (30) → ATHLETIC_LOW
+    assert result.status == "ATHLETIC_LOW"
 
 
 def test_athletic_low_ferritin_below_standard_but_above_athletic_adj():
-    """Values between ref.low and athletic_low_adj trigger ATHLETIC_LOW... wait.
-    Let me re-check: athletic_low_adj=30 means athletes should target >30.
-    If value is between ref.low (12) and athletic_low_adj (30), it's ATHLETIC_LOW."""
+    """Values between ref.low (12) and athletic_low_adj (30) → ATHLETIC_LOW.
+    Athletes should target >30; 15 is in standard range but below athletic threshold."""
     result = interpreter.interpret("ferritin", 15.0)
-    # 12 <= 15 < 30 (athletic threshold) → this would be NORMAL by standard (>12)
-    # The ATHLETIC_LOW only triggers when value < ref.low
-    # So 15 > 12 → NORMAL
     assert result is not None
-    assert result.status == "NORMAL"
+    assert result.status == "ATHLETIC_LOW"
 
 
 def test_low_testosterone_male():
