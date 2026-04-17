@@ -134,8 +134,10 @@ from agents.competition_prep import CompetitionPrepAgent
 from memory.sessions import save_session, load_session, list_sessions
 from memory.session_log import log_exchange, log_stats
 from tools.config import load_config, validate_config, first_run_check, create_default_config
-from tools.supplements import resolve_supplement, SUPPLEMENT_DB
+from tools.supplements import resolve_supplement, SUPPLEMENT_DB, list_supplements_by_category
 from tools.interactions import lookup_interactions
+from memory.progress import ProgressTracker, KNOWN_METRICS
+from agents.stack_optimizer import StackOptimizerAgent
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -321,6 +323,8 @@ class Kiwi:
         self.training_plan_agent = TrainingPlanAgent(self.client)
         self.systematic_review_agent = SystematicReviewAgent(self.client)
         self.competition_prep_agent = CompetitionPrepAgent(self.client)
+        self.stack_optimizer_agent = StackOptimizerAgent(self.client)
+        self.progress = ProgressTracker(client=self.active_client_name)
         self.watch_list = WatchList(client=self.active_client_name)
         self.cost = SessionCostTracker()
         self.config = load_config()
@@ -638,6 +642,8 @@ class Kiwi:
                         "[bold]Planning:[/bold]  /meal_plan [days] · /training_plan [sport] [weeks] · /fight_prep · /race_prep\n"
                         "[bold]Quality:[/bold]   /autoquality <title> · /quality <tool>\n"
                         "[bold]Analytics:[/bold] /effect <m1 sd1 n1 m2 sd2 n2> · /readpdf <doi> · /cost · /team\n"
+                        "[bold]Progress:[/bold]  /track <metric> <value> · /trends <metric> · /dashboard\n"
+                        "[bold]Optimize:[/bold]  /optimize_stack · /onboard · /summary\n"
                         "[bold]Orchestration:[/bold] /review <topic> · /watch <topic> · /watched · /digest\n"
                         "[bold]Clients:[/bold]    /clients · /new_client <name> · /switch_client <name> · /delete_client <name>\n"
                         "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords> · /stale\n"
@@ -711,6 +717,7 @@ class Kiwi:
                         self.profile = UserProfile(client=self.active_client_name)
                         self.preferences = PreferencesStore(client=self.active_client_name)
                         self.watch_list = WatchList(client=self.active_client_name)
+                        self.progress = ProgressTracker(client=self.active_client_name)
                         self.messages = []
                         console.print(f"[dim]  Switched to client: [cyan]{self.active_client_name}[/cyan][/dim]")
                     else:
@@ -1196,6 +1203,125 @@ class Kiwi:
                         "notes": notes,
                     })
                     console.print(result)
+
+                elif q_lower.startswith("/track "):
+                    parts = query[7:].strip().split(maxsplit=2)
+                    if len(parts) >= 2:
+                        metric = parts[0].lower().replace(" ", "_")
+                        try:
+                            value = float(parts[1])
+                            note = parts[2] if len(parts) > 2 else ""
+                            self.progress.record(metric, value, note=note)
+                            unit = KNOWN_METRICS.get(metric, "")
+                            console.print(f"[dim]  Tracked: {metric} = {value} {unit}"
+                                          + (f" ({note})" if note else "") + "[/dim]")
+                        except ValueError:
+                            console.print(f"[dim red]  Value must be numeric: /track {metric} <number>[/dim red]")
+                    else:
+                        metrics_list = ", ".join(sorted(KNOWN_METRICS.keys())[:15]) + "..."
+                        console.print(f"[dim]  Usage: /track <metric> <value> [note][/dim]")
+                        console.print(f"[dim]  Known metrics: {metrics_list}[/dim]")
+
+                elif q_lower.startswith("/trends "):
+                    metric = query[8:].strip().lower().replace(" ", "_")
+                    if metric:
+                        output = self.progress.format_trend(metric)
+                        console.print(Panel(output, title=f"[cyan]Trend: {metric}[/cyan]", border_style="cyan", box=box.SIMPLE))
+                    else:
+                        console.print("[dim]  Usage: /trends <metric>[/dim]")
+
+                elif q_lower == "/trends" or q_lower == "/dashboard":
+                    output = self.progress.format_dashboard()
+                    console.print(Panel(output, title="[cyan]Progress Dashboard[/cyan]", border_style="cyan", box=box.SIMPLE))
+
+                elif q_lower == "/optimize_stack" or q_lower.startswith("/optimize_stack "):
+                    notes = query[15:].strip() if len(query) > 15 else ""
+                    profile_summary = self.profile.to_summary()
+                    current_supps = self.profile.get("current_supplements") or []
+                    current_stack = ", ".join(current_supps) if current_supps else "none listed"
+                    goals = self.profile.get("primary_goal") or notes or "general performance"
+
+                    # Build supplement DB summary (compact)
+                    db_lines = []
+                    for key, proto in SUPPLEMENT_DB.items():
+                        db_lines.append(
+                            f"• {proto.name} ({key}) — {proto.evidence} — "
+                            f"{proto.maintenance_dose} — {proto.mechanism[:100]}"
+                        )
+                    db_summary = "\n".join(db_lines)
+
+                    # Build biomarker context from progress data
+                    biomarker_lines = []
+                    for m in self.progress.get_all_metrics():
+                        latest = self.progress.get_latest(m)
+                        if latest:
+                            biomarker_lines.append(f"  {m}: {latest['value']} {latest.get('unit', '')} ({latest.get('ts', '')[:10]})")
+                    biomarker_text = "\n".join(biomarker_lines) if biomarker_lines else "No biomarker data tracked"
+
+                    console.print("[dim]  Analyzing profile + biomarkers + supplement DB + interactions...[/dim]\n")
+                    result = await self.stack_optimizer_agent.run({
+                        "profile_summary": profile_summary,
+                        "goals": goals,
+                        "biomarker_data": biomarker_text,
+                        "current_stack": current_stack,
+                        "supplement_db_summary": db_summary,
+                        "interaction_data": "",
+                    })
+                    console.print(result)
+
+                elif q_lower == "/onboard":
+                    console.print("[cyan]  Client Onboarding Wizard[/cyan]\n")
+                    fields_order = [
+                        ("name", "Full name"),
+                        ("age", "Age"),
+                        ("sex", "Sex (male/female)"),
+                        ("weight_kg", "Weight in kg"),
+                        ("height_cm", "Height in cm"),
+                        ("body_fat_pct", "Body fat % (leave blank if unknown)"),
+                        ("sport", "Primary sport"),
+                        ("training_status", "Training status (novice/intermediate/advanced/elite)"),
+                        ("activity_level", "Activity level (sedentary/light/moderate/active/very_active)"),
+                        ("primary_goal", "Primary goal (performance/body_composition/health/longevity)"),
+                        ("dietary_restrictions", "Dietary restrictions (comma-separated, or blank)"),
+                        ("current_supplements", "Current supplements (comma-separated, or blank)"),
+                        ("health_conditions", "Health conditions (comma-separated, or blank)"),
+                    ]
+                    for field_key, prompt_text in fields_order:
+                        current = self.profile.get(field_key)
+                        current_str = f" [dim](current: {current})[/dim]" if current else ""
+                        try:
+                            val = console.input(f"  {prompt_text}{current_str}: ").strip()
+                        except (KeyboardInterrupt, EOFError):
+                            console.print("\n[dim]  Onboarding cancelled.[/dim]")
+                            break
+                        if val:
+                            result = self.profile.set(field_key, val)
+                            if result is True:
+                                console.print(f"    [dim]✓ {field_key} = {val}[/dim]")
+                            elif isinstance(result, str):
+                                console.print(f"    [dim red]✗ {result}[/dim red]")
+                    console.print("\n[dim]  Onboarding complete. Review with /profile[/dim]")
+
+                elif q_lower == "/summary":
+                    if not self.messages:
+                        console.print("[dim]  No conversation to summarize.[/dim]")
+                    else:
+                        user_msgs = [m for m in self.messages if m.get("role") == "user"]
+                        lines = [f"Session Summary — {len(user_msgs)} exchanges\n"]
+                        for i, msg in enumerate(user_msgs, 1):
+                            content = msg.get("content", "")
+                            if isinstance(content, str):
+                                lines.append(f"  {i}. {content[:150]}")
+                        if last_query and last_score:
+                            lines.append(f"\n  Last RWL score: {last_score:.2f}")
+                        lines.append(f"  Active client: {self.active_client_name}")
+                        if self.active_thread:
+                            lines.append(f"  Thread: {self.active_thread}")
+                        console.print(Panel(
+                            "\n".join(lines),
+                            title="[cyan]Session Summary[/cyan]",
+                            border_style="cyan", box=box.SIMPLE,
+                        ))
 
                 elif q_lower.startswith("/save_session"):
                     label = query[13:].strip() if len(query) > 13 else ""
