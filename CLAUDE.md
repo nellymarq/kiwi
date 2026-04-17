@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - Launch: `python3 kiwi.py`
-- Tests: `python3 -m pytest tests/ -x -q` (1143 tests)
+- Tests: `python3 -m pytest tests/ -x -q` (1223 tests)
 - GitHub: `nellymarq/kiwi`
 - Always run tests before committing code changes.
 
@@ -51,10 +51,17 @@ All deduplicated by DOI, merged into a single context block for Claude.
 - **Citation chasing** — forward (cited by) and backward (references)
 - **Full-text access** — Europe PMC + Unpaywall for OA PDFs
 
-## Commands (65+)
+## Commands (90+)
 - **Research:** direct query · /protocol · /plan
-- **Literature:** /pubmed · /openalex · /trials · /tldr · /fulltext <doi> · /citedby <doi>
-- **Deep Research:** /synthesize <claim> · /n_of_1 <question> · /grade <tier>
+- **Literature:** /pubmed · /openalex · /trials · /tldr · /fulltext <doi> · /citedby <doi> · /readpdf <doi>
+- **Deep Research:** /synthesize <claim> · /review <topic> (PRISMA) · /n_of_1 <question> · /grade <tier>
+- **Quality:** /quality <tool> · /autoquality <title> · /effect <data>
+- **Optimization:** /optimize_stack · /risk_screen · /suggest_research · /recommend <finding>
+- **Planning:** /meal_plan [days] · /training_plan [sport] [weeks] · /fight_prep · /race_prep
+- **Delivery:** /pdf · /accepted [note] · /rejected [reason] · /preferences
+- **Clients:** /clients · /new_client <name> · /switch_client <name> · /delete_client <name> · /onboard
+- **Progress:** /track <metric> <value> · /trends <metric> · /dashboard
+- **Living Reviews:** /watch <topic> · /unwatch · /watched · /digest
 - **Memory:** /memory · /remember · /export · /archive · /stale
 - **Threads:** /thread new|use|list
 - **Profile:** /profile · /profile set
@@ -72,6 +79,8 @@ All deduplicated by DOI, merged into a single context block for Claude.
 - **Environ:** /altitude · /heat · /cold · /airquality · /jetlag
 - **Mental:** /anxiety · /burnout · /visualize
 - **Sports:** /assess
+- **Analytics:** /cost · /team · /log · /summary
+- **Sessions:** /save_session [label] · /resume_session <id> · /sessions
 - **Session:** /clear · /new · /help · /quit
 
 ## Also Bundled In
