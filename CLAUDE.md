@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - Launch: `python3 kiwi.py`
-- Tests: `python3 -m pytest tests/ -x -q` (1093 tests)
+- Tests: `python3 -m pytest tests/ -x -q` (1112 tests)
 - GitHub: `nellymarq/kiwi`
 - Always run tests before committing code changes.
 
@@ -41,6 +41,10 @@ All deduplicated by DOI, merged into a single context block for Claude.
 - **Living reviews** — subscribe to topics, auto-detect new literature (`/watch`, `/digest`)
 - **Cost tracker** — per-session API token + USD tracking (`/cost`)
 - **Team analytics** — cross-client metrics: supplement frequency, inactive clients, incomplete profiles (`/team`)
+- **Competition prep** — fight-week / race-week integrated protocol: weight cut, nutrition timing, supplements, mental (`/fight_prep`, `/race_prep`)
+- **Session persistence** — save/resume conversations across restarts (`/save_session`, `/resume_session`, `/sessions`)
+- **Structured logging** — per-client JSONL log of every query + score + cost (`/log`)
+- **Config management** — `~/.kiwi/config.json` for API keys, branding, research defaults
 - **Ralph Wiggum Loop** — 5-dimension critique (grounding, hierarchy, mechanism, logic, uncertainty)
 - **Evidence Synthesis Agent** — structured multi-paper review with consensus/contradiction analysis
 - **N-of-1 Protocol Designer** — rigorous single-subject experimental design

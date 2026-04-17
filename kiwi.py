@@ -130,6 +130,10 @@ from tools.cost_tracker import SessionCostTracker
 from tools.team_analytics import format_team_summary
 from memory.watch_list import WatchList
 from agents.systematic_review import SystematicReviewAgent
+from agents.competition_prep import CompetitionPrepAgent
+from memory.sessions import save_session, load_session, list_sessions
+from memory.session_log import log_exchange, log_stats
+from tools.config import load_config, validate_config, first_run_check, create_default_config
 from tools.supplements import resolve_supplement, SUPPLEMENT_DB
 from tools.interactions import lookup_interactions
 
@@ -316,8 +320,10 @@ class Kiwi:
         self.meal_plan_agent = MealPlanAgent(self.client)
         self.training_plan_agent = TrainingPlanAgent(self.client)
         self.systematic_review_agent = SystematicReviewAgent(self.client)
+        self.competition_prep_agent = CompetitionPrepAgent(self.client)
         self.watch_list = WatchList(client=self.active_client_name)
         self.cost = SessionCostTracker()
+        self.config = load_config()
         self.pubmed = PubMedClient() if use_pubmed else None
         self.openalex = OpenAlexClient() if use_pubmed else None
         self.trials = ClinicalTrialsClient() if use_pubmed else None
@@ -629,7 +635,8 @@ class Kiwi:
                         "[bold]Literature:[/bold] /pubmed · /openalex · /trials · /tldr · /fulltext <doi> · /citedby <doi>\n"
                         "[bold]Deep Research:[/bold] /synthesize <claim> · /n_of_1 <q> · /grade · /quality · /recommend <finding>\n"
                         "[bold]Delivery:[/bold]  /pdf · /accepted [note] · /rejected [reason] · /preferences\n"
-                        "[bold]Planning:[/bold]  /meal_plan [days] · /training_plan [sport] [weeks] · /autoquality <title>\n"
+                        "[bold]Planning:[/bold]  /meal_plan [days] · /training_plan [sport] [weeks] · /fight_prep · /race_prep\n"
+                        "[bold]Quality:[/bold]   /autoquality <title> · /quality <tool>\n"
                         "[bold]Analytics:[/bold] /effect <m1 sd1 n1 m2 sd2 n2> · /readpdf <doi> · /cost · /team\n"
                         "[bold]Orchestration:[/bold] /review <topic> · /watch <topic> · /watched · /digest\n"
                         "[bold]Clients:[/bold]    /clients · /new_client <name> · /switch_client <name> · /delete_client <name>\n"
@@ -651,7 +658,8 @@ class Kiwi:
                         "[bold]Environ:[/bold]  /altitude · /heat · /cold · /airquality · /jetlag\n"
                         "[bold]Mental:[/bold]   /anxiety · /burnout · /visualize [type]\n"
                         "[bold]Sports:[/bold]   /assess [notes]\n"
-                        "[bold]Session:[/bold]  /clear · /new · /quit"
+                        "[bold]Persist:[/bold]  /save_session [label] · /resume_session <id> · /sessions · /log\n"
+                        "[bold]Session:[/bold]  /clear · /new · /help · /quit"
                     )
                     console.print(Panel(
                         help_text,
@@ -1167,6 +1175,104 @@ class Kiwi:
                         "frequency": 4,
                     })
                     console.print(result)
+
+                elif q_lower.startswith("/fight_prep") or q_lower.startswith("/race_prep"):
+                    notes = ""
+                    if " " in query:
+                        notes = query.split(maxsplit=1)[1].strip()
+                    sport = self.profile.get("sport") or "combat sports"
+                    current_weight = self.profile.get("weight_kg") or ""
+                    supplements_list = self.profile.get("current_supplements") or []
+                    supplements_text = ", ".join(supplements_list) if supplements_list else "none listed"
+
+                    console.print(f"[dim]  Generating competition preparation protocol for {sport}...[/dim]\n")
+                    result = await self.competition_prep_agent.run({
+                        "profile_summary": self.profile.to_summary(),
+                        "sport": sport,
+                        "event": "competition" if "fight" in q_lower else "race",
+                        "current_weight": str(current_weight) + " kg" if current_weight else "",
+                        "target_weight": "",
+                        "current_supplements": supplements_text,
+                        "notes": notes,
+                    })
+                    console.print(result)
+
+                elif q_lower.startswith("/save_session"):
+                    label = query[13:].strip() if len(query) > 13 else ""
+                    if not self.messages:
+                        console.print("[dim]  No conversation to save.[/dim]")
+                    else:
+                        session_id = label or datetime.now().strftime("%Y%m%d_%H%M%S")
+                        summary = last_query[:200] if last_query else ""
+                        path = save_session(
+                            session_id=session_id,
+                            messages=self.messages,
+                            thread=self.active_thread,
+                            summary=summary,
+                            client=self.active_client_name,
+                        )
+                        console.print(f"[dim]  Session saved: [cyan]{session_id}[/cyan] ({len(self.messages)} messages)[/dim]")
+
+                elif q_lower.startswith("/resume_session") or q_lower.startswith("/resume "):
+                    offset = 16 if q_lower.startswith("/resume_session") else 8
+                    session_id = query[offset:].strip()
+                    if not session_id:
+                        console.print("[dim]  Usage: /resume_session <session_id> (see /sessions for list)[/dim]")
+                    else:
+                        data = load_session(session_id, client=self.active_client_name)
+                        if data:
+                            self.messages = data.get("messages", [])
+                            if data.get("thread"):
+                                self.active_thread = data["thread"]
+                            console.print(
+                                f"[dim]  Resumed session: [cyan]{session_id}[/cyan] "
+                                f"({data.get('message_count', 0)} messages, "
+                                f"saved {data.get('saved_at', '')[:10]})[/dim]"
+                            )
+                            if data.get("summary"):
+                                console.print(f"[dim]  Last topic: {data['summary']}[/dim]")
+                        else:
+                            console.print(f"[dim red]  Session '{session_id}' not found.[/dim red]")
+
+                elif q_lower == "/sessions":
+                    sessions = list_sessions(client=self.active_client_name)
+                    if not sessions:
+                        console.print("[dim]  No saved sessions. Use /save_session [label] to save.[/dim]")
+                    else:
+                        lines = []
+                        for s in sessions:
+                            lines.append(
+                                f"  [cyan]{s['session_id']}[/cyan] — "
+                                f"{s.get('saved_at', '')[:16]} · "
+                                f"{s['message_count']} msgs"
+                                + (f" · {s['summary'][:60]}" if s.get("summary") else "")
+                            )
+                        console.print(Panel(
+                            "\n".join(lines),
+                            title="[cyan]Saved Sessions[/cyan]",
+                            border_style="cyan", box=box.SIMPLE,
+                        ))
+
+                elif q_lower == "/log" or q_lower == "/history":
+                    stats = log_stats(client=self.active_client_name)
+                    lines = [
+                        f"Total queries: {stats['total_queries']}",
+                    ]
+                    if stats.get("by_route"):
+                        lines.append("By route:")
+                        for route, count in stats["by_route"].items():
+                            lines.append(f"  {route}: {count}")
+                    if stats.get("avg_score") is not None:
+                        lines.append(f"Average RWL score: {stats['avg_score']:.2f}")
+                    if stats.get("total_cost_usd"):
+                        lines.append(f"Total cost: ${stats['total_cost_usd']:.4f}")
+                    if stats.get("first_query"):
+                        lines.append(f"First query: {stats['first_query']} · Last: {stats['last_query']}")
+                    console.print(Panel(
+                        "\n".join(lines),
+                        title="[cyan]Client Research Log[/cyan]",
+                        border_style="cyan", box=box.SIMPLE,
+                    ))
 
                 elif q_lower.startswith("/effect "):
                     parts = query[8:].strip().split()
