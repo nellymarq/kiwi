@@ -127,8 +127,9 @@ from tools.auto_quality import auto_assess as auto_quality_assess
 from tools.effect_size import cohens_d, hedges_g, mean_difference, relative_risk, odds_ratio, number_needed_to_treat
 from tools.pdf_reader import read_pdf as read_oa_pdf
 from tools.cost_tracker import SessionCostTracker
-from tools.team_analytics import format_team_summary
+from tools.team_analytics import format_team_summary, compare_clients, format_client_snapshot
 from memory.watch_list import WatchList
+from memory.interventions import InterventionTracker
 from agents.systematic_review import SystematicReviewAgent
 from agents.competition_prep import CompetitionPrepAgent
 from memory.sessions import save_session, load_session, list_sessions
@@ -331,6 +332,7 @@ class Kiwi:
         self.risk_screen_agent = RiskScreenAgent(self.client)
         self.question_gen_agent = QuestionGenAgent(self.client)
         self.progress = ProgressTracker(client=self.active_client_name)
+        self.interventions = InterventionTracker(client=self.active_client_name)
         self.watch_list = WatchList(client=self.active_client_name)
         self.cost = SessionCostTracker()
         self.config = load_config()
@@ -724,6 +726,7 @@ class Kiwi:
                         self.preferences = PreferencesStore(client=self.active_client_name)
                         self.watch_list = WatchList(client=self.active_client_name)
                         self.progress = ProgressTracker(client=self.active_client_name)
+                        self.interventions = InterventionTracker(client=self.active_client_name)
                         self.messages = []
                         console.print(f"[dim]  Switched to client: [cyan]{self.active_client_name}[/cyan][/dim]")
                     else:
@@ -1209,6 +1212,82 @@ class Kiwi:
                         "notes": notes,
                     })
                     console.print(result)
+
+                elif q_lower.startswith("/import_labs "):
+                    parts = query[12:].strip().split()
+                    if len(parts) < 2 or len(parts) % 2 != 0:
+                        console.print("[dim]  Usage: /import_labs <marker1> <val1> <marker2> <val2> ...[/dim]")
+                    else:
+                        imported = 0
+                        all_actions = []
+                        sex = self.profile.get("sex") or "male"
+                        current_supps = self.profile.get("current_supplements") or []
+                        for i in range(0, len(parts), 2):
+                            metric = parts[i].lower().replace(" ", "_")
+                            try:
+                                value = float(parts[i + 1])
+                                self.progress.record(metric, value)
+                                imported += 1
+                                actions = check_biomarker(metric, value, sex=sex, current_supplements=current_supps)
+                                all_actions.extend(actions)
+                            except ValueError:
+                                console.print(f"[dim red]  Skipped {metric}: '{parts[i+1]}' is not numeric[/dim red]")
+                        console.print(f"[dim]  Imported {imported} biomarkers[/dim]")
+                        if all_actions:
+                            console.print()
+                            console.print(format_proactive_actions(all_actions))
+
+                elif q_lower == "/snapshot":
+                    output = format_client_snapshot(self.active_client_name)
+                    console.print(Panel(output, title=f"[cyan]Snapshot: {self.active_client_name}[/cyan]",
+                                        border_style="cyan", box=box.SIMPLE))
+
+                elif q_lower.startswith("/compare_clients "):
+                    parts = query[17:].strip().split()
+                    if len(parts) >= 2:
+                        output = compare_clients(parts[0], parts[1])
+                        console.print(Panel(output, title="[cyan]Client Comparison[/cyan]",
+                                            border_style="cyan", box=box.SIMPLE))
+                    else:
+                        console.print("[dim]  Usage: /compare_clients <name_a> <name_b>[/dim]")
+
+                elif q_lower.startswith("/intervention "):
+                    parts = query[14:].strip().split(maxsplit=3)
+                    if not parts:
+                        console.print("[dim]  Usage: /intervention start|stop|check|list <name> [dose] [target_metric][/dim]")
+                    elif parts[0] == "start" and len(parts) >= 2:
+                        name = parts[1]
+                        dose = parts[2] if len(parts) > 2 else ""
+                        target = parts[3] if len(parts) > 3 else ""
+                        entry = self.interventions.start(name, dose, target)
+                        console.print(f"[dim]  Started intervention: [cyan]{name}[/cyan]"
+                                      + (f" ({dose})" if dose else "")
+                                      + (f" → tracking {target}" if target else "")
+                                      + f"[/dim]")
+                    elif parts[0] == "stop" and len(parts) >= 2:
+                        reason = parts[2] if len(parts) > 2 else ""
+                        if self.interventions.stop(parts[1], reason):
+                            console.print(f"[dim]  Stopped intervention: {parts[1]}[/dim]")
+                        else:
+                            console.print(f"[dim red]  No active intervention '{parts[1]}' found[/dim red]")
+                    elif parts[0] == "check" and len(parts) >= 2:
+                        result = self.interventions.check_outcome(parts[1])
+                        console.print(Panel(
+                            self.interventions.format_outcome(result),
+                            title="[cyan]Intervention Outcome[/cyan]",
+                            border_style="cyan", box=box.SIMPLE,
+                        ))
+                    elif parts[0] == "list":
+                        console.print(Panel(
+                            self.interventions.format_active(),
+                            title="[cyan]Active Interventions[/cyan]",
+                            border_style="cyan", box=box.SIMPLE,
+                        ))
+                    else:
+                        console.print("[dim]  /intervention start <name> [dose] [target_metric][/dim]")
+                        console.print("[dim]  /intervention stop <name> [reason][/dim]")
+                        console.print("[dim]  /intervention check <name>[/dim]")
+                        console.print("[dim]  /intervention list[/dim]")
 
                 elif q_lower.startswith("/track "):
                     parts = query[7:].strip().split(maxsplit=2)
