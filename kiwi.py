@@ -623,15 +623,19 @@ class Kiwi:
             )
 
     async def interactive(self):
-        """Main async REPL loop."""
+        """Main async REPL loop — dispatches to _handle_* methods."""
         session_num = self.memory.start_session()
         self._show_welcome(session_num)
 
-        last_query = ""
-        last_response = ""
-        last_output = ""  # Captures output from any agent command for /pdf_last
-        last_critique: dict = {}
-        last_score = 0.0
+        # Shared state dict passed to all handlers
+        self._state = {
+            "last_query": "",
+            "last_response": "",
+            "last_output": "",
+            "last_critique": {},
+            "last_score": 0.0,
+            "session_num": session_num,
+        }
 
         while True:
             try:
@@ -699,7 +703,7 @@ class Kiwi:
                     # Auto-save session on exit
                     if self.messages:
                         session_id = f"auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                        summary = last_query[:200] if last_query else ""
+                        summary = self._state["last_query"][:200] if last_query else ""
                         save_session(session_id, self.messages, self.active_thread, summary, self.active_client_name)
                         console.print(f"[dim]  Session auto-saved: {session_id}[/dim]")
                     # Log session cost
@@ -785,14 +789,14 @@ class Kiwi:
                         console.print(f"[dim]  Saved to memory: {note}[/dim]")
 
                 elif q_lower == "/export":
-                    if last_response:
+                    if self._state["last_response"]:
                         path = self.exporter.export_markdown(
-                            query=last_query,
+                            query=self._state["last_query"],
                             plan="",
-                            response=last_response,
-                            score=last_score,
-                            critique_data=last_critique,
-                            refined=last_score < REFINEMENT_THRESHOLD,
+                            response=self._state["last_response"],
+                            score=self._state["last_score"],
+                            critique_data=self._state["last_critique"],
+                            refined=self._state["last_score"] < REFINEMENT_THRESHOLD,
                             thread_name=self.active_thread,
                         )
                         console.print(f"[dim]  Exported to: {path}[/dim]")
@@ -1006,7 +1010,7 @@ class Kiwi:
                                 "papers_context": papers_ctx,
                                 "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
                             })
-                            last_output = result
+                            self._state["last_output"] = result
                             console.print(result)
 
                 elif q_lower.startswith("/review "):
@@ -1027,7 +1031,7 @@ class Kiwi:
                                 "papers_context": papers_ctx,
                                 "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
                             })
-                            last_output = result
+                            self._state["last_output"] = result
                             console.print(result)
 
                 elif q_lower.startswith("/watch "):
@@ -1137,7 +1141,7 @@ class Kiwi:
                             "research_context": research_ctx,
                             "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
                         })
-                        last_output = result
+                        self._state["last_output"] = result
                         console.print(result)
 
                 elif q_lower.startswith("/meal_plan") or q_lower.startswith("/mealplan"):
@@ -1182,7 +1186,7 @@ class Kiwi:
                             "dietary_restrictions": restrictions_text,
                             "goal": goal,
                         })
-                        last_output = result
+                        self._state["last_output"] = result
                         console.print(result)
 
                 elif q_lower.startswith("/training_plan") or q_lower.startswith("/trainingplan"):
@@ -1214,7 +1218,7 @@ class Kiwi:
                         "current_load": "",
                         "frequency": 4,
                     })
-                    last_output = result
+                    self._state["last_output"] = result
                     console.print(result)
 
                 elif q_lower.startswith("/fight_prep") or q_lower.startswith("/race_prep"):
@@ -1236,7 +1240,7 @@ class Kiwi:
                         "current_supplements": supplements_text,
                         "notes": notes,
                     })
-                    last_output = result
+                    self._state["last_output"] = result
                     console.print(result)
 
                 elif q_lower.startswith("/import_labs "):
@@ -1385,7 +1389,7 @@ class Kiwi:
                         "supplement_db_summary": db_summary,
                         "interaction_data": "",
                     })
-                    last_output = result
+                    self._state["last_output"] = result
                     console.print(result)
 
                 elif q_lower == "/risk_screen" or q_lower.startswith("/risk_screen "):
@@ -1417,7 +1421,7 @@ class Kiwi:
                         "training_load": "",
                         "notes": notes,
                     })
-                    last_output = result
+                    self._state["last_output"] = result
                     console.print(result)
 
                 elif q_lower == "/suggest_research" or q_lower.startswith("/suggest_research "):
@@ -1459,7 +1463,7 @@ class Kiwi:
                         "recent_research": recent_text,
                         "progress_data": progress_text,
                     })
-                    last_output = result
+                    self._state["last_output"] = result
                     console.print(result)
 
                 elif q_lower.startswith("/template"):
@@ -1559,8 +1563,8 @@ class Kiwi:
                         "research_gaps": gaps_text,
                         "biomarker_due": retest_text if "No biomarkers" not in retest_text else "",
                     }
-                    last_output = await self.daily_brief_agent.run(brief_context)
-                    console.print(last_output)
+                    self._state["last_output"] = await self.daily_brief_agent.run(brief_context)
+                    console.print(self._state["last_output"])
 
                     # Append timing schedule if available
                     if timing_text and supplements:
@@ -1773,8 +1777,8 @@ class Kiwi:
                             content = msg.get("content", "")
                             if isinstance(content, str):
                                 lines.append(f"  {i}. {content[:150]}")
-                        if last_query and last_score:
-                            lines.append(f"\n  Last RWL score: {last_score:.2f}")
+                        if self._state["last_query"] and self._state["last_score"]:
+                            lines.append(f"\n  Last RWL score: {self._state['last_score']:.2f}")
                         lines.append(f"  Active client: {self.active_client_name}")
                         if self.active_thread:
                             lines.append(f"  Thread: {self.active_thread}")
@@ -1790,7 +1794,7 @@ class Kiwi:
                         console.print("[dim]  No conversation to save.[/dim]")
                     else:
                         session_id = label or datetime.now().strftime("%Y%m%d_%H%M%S")
-                        summary = last_query[:200] if last_query else ""
+                        summary = self._state["last_query"][:200] if last_query else ""
                         path = save_session(
                             session_id=session_id,
                             messages=self.messages,
@@ -1939,16 +1943,16 @@ class Kiwi:
                         console.print("[dim]  Usage: /autoquality <paper title or title + abstract>[/dim]")
 
                 elif q_lower == "/pdf_last":
-                    if not last_output:
+                    if not self._state["last_output"]:
                         console.print("[dim]  No command output to export. Run a command first.[/dim]")
                     else:
                         try:
                             practitioner = self.profile.get("name") or ""
                             brand = BrandConfig(practitioner=practitioner)
                             pdf_path = generate_client_report(
-                                query=last_query or "Command Output",
-                                response=last_output,
-                                score=last_score,
+                                query=self._state["last_query"] or "Command Output",
+                                response=self._state["last_output"],
+                                score=self._state["last_score"],
                                 critique_data={},
                                 brand=brand,
                                 client_name=self.active_client_name,
@@ -1958,13 +1962,13 @@ class Kiwi:
                             console.print(f"[dim red]  PDF export failed: {e}[/dim red]")
 
                 elif q_lower == "/pdf" or q_lower.startswith("/pdf "):
-                    if not last_response:
+                    if not self._state["last_response"]:
                         console.print("[dim]  No research session to export yet.[/dim]")
                     else:
                         practitioner = self.profile.get("name") or ""
                         brand = BrandConfig(practitioner=practitioner)
                         grade_level = ""
-                        score_val = last_score or 0.0
+                        score_val = self._state["last_score"] or 0.0
                         if score_val >= 0.85:
                             grade_level = "HIGH"
                         elif score_val >= 0.72:
@@ -1975,10 +1979,10 @@ class Kiwi:
                             grade_level = "VERY LOW"
                         try:
                             pdf_path = generate_client_report(
-                                query=last_query,
-                                response=last_response,
+                                query=self._state["last_query"],
+                                response=self._state["last_response"],
                                 score=score_val,
-                                critique_data=last_critique or {},
+                                critique_data=self._state["last_critique"] or {},
                                 brand=brand,
                                 client_name=self.active_client_name,
                                 grade_level=grade_level,
@@ -2040,12 +2044,12 @@ class Kiwi:
                             "supplement_options": supp_options,
                             "interaction_check": interaction_text,
                         })
-                        last_output = result
+                        self._state["last_output"] = result
                         console.print(result)
 
                 elif q_lower.startswith("/accepted"):
                     payload = query[9:].strip() if len(query) > 9 else ""
-                    rec_text = last_response[:500] if last_response else ""
+                    rec_text = self._state["last_response"][:500] if self._state["last_response"] else ""
                     if not rec_text:
                         console.print("[dim]  No recent recommendation to mark accepted.[/dim]")
                     else:
@@ -2054,7 +2058,7 @@ class Kiwi:
 
                 elif q_lower.startswith("/rejected"):
                     payload = query[9:].strip() if len(query) > 9 else ""
-                    rec_text = last_response[:500] if last_response else ""
+                    rec_text = self._state["last_response"][:500] if self._state["last_response"] else ""
                     if not rec_text:
                         console.print("[dim]  No recent recommendation to mark rejected.[/dim]")
                     else:
@@ -3082,8 +3086,8 @@ class Kiwi:
                     sub_query = query[10:].strip()
                     if sub_query:
                         result = await self.research(sub_query, generate_protocol=True)
-                        last_query = sub_query
-                        last_response = result
+                        self._state["last_query"] = sub_query
+                        self._state["last_response"] = result
 
                 # ── Research (with natural language routing) ──────────────────
 
@@ -3095,11 +3099,11 @@ class Kiwi:
                         console.print(f"[dim]  (Type the command above, or just ask your question as-is)[/dim]")
 
                     result = await self.research(query)
-                    last_query = query
-                    last_response = result
-                    last_output = result
+                    self._state["last_query"] = query
+                    self._state["last_response"] = result
+                    self._state["last_output"] = result
                     # Log to structured session log
-                    log_exchange(query, "research", score=last_score, thread=self.active_thread,
+                    log_exchange(query, "research", score=self._state["last_score"], thread=self.active_thread,
                                 client=self.active_client_name)
 
             except KeyboardInterrupt:
