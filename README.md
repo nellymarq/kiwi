@@ -52,17 +52,17 @@ Kiwi > /help
 ## Architecture
 
 ```
-kiwi.py              — Interactive CLI (100+ commands)
-agents/              — 16 specialized agents (planning, synthesis, critique, protocol, etc.)
-tools/               — 38 tools (PubMed, OpenAlex, supplements, biomarkers, etc.)
-memory/              — 9 modules (per-client profiles, progress, interventions, sessions, etc.)
-tests/               — 45 test files, 1273 tests
+kiwi.py              — Interactive CLI (110+ commands)
+agents/              — 17 specialized agents
+tools/               — 40 tools (literature, supplements, biomarkers, analytics, etc.)
+memory/              — 9 modules (per-client profiles, progress, interventions, sessions)
+tests/               — 47 test files, 1302 tests
 ```
 
 ## Tests
 
 ```bash
-python3 -m pytest tests/ -x -q    # 1273 tests, ~2 seconds
+python3 -m pytest tests/ -x -q    # 1302 tests, ~2 seconds
 ```
 
 ## License
