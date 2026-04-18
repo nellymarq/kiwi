@@ -143,6 +143,9 @@ from agents.risk_screen import RiskScreenAgent
 from agents.question_gen import QuestionGenAgent
 from tools.proactive import check_biomarker, format_proactive_actions
 from tools.contradiction import detect_contradictions, format_contradictions
+from tools.command_router import route_natural_language, format_route_suggestion
+from tools.protocol_templates import get_template, list_templates
+from tools.nutrient_gaps import analyze_gaps, format_gap_analysis
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1432,6 +1435,45 @@ class Kiwi:
                         "progress_data": progress_text,
                     })
                     console.print(result)
+
+                elif q_lower.startswith("/template"):
+                    name = query[9:].strip() if len(query) > 9 else ""
+                    if not name:
+                        console.print(Panel(
+                            list_templates(),
+                            title="[cyan]Protocol Templates[/cyan]",
+                            border_style="cyan", box=box.SIMPLE,
+                        ))
+                    else:
+                        tmpl = get_template(name)
+                        if tmpl:
+                            console.print(Panel(
+                                tmpl.content,
+                                title=f"[cyan]{tmpl.name}[/cyan]",
+                                subtitle=f"[dim]{tmpl.duration} · {tmpl.category}[/dim]",
+                                border_style="cyan", box=box.SIMPLE,
+                            ))
+                        else:
+                            console.print(f"[dim red]  Template '{name}' not found. Use /template to list.[/dim red]")
+
+                elif q_lower == "/gaps":
+                    sex = self.profile.get("sex") or "male"
+                    sport = self.profile.get("sport") or ""
+                    restrictions = self.profile.get("dietary_restrictions") or []
+                    supplements = self.profile.get("current_supplements") or []
+                    conditions = self.profile.get("health_conditions") or []
+
+                    gaps = analyze_gaps(
+                        sex=sex, sport=sport,
+                        dietary_restrictions=restrictions,
+                        current_supplements=supplements,
+                        health_conditions=conditions,
+                    )
+                    console.print(Panel(
+                        format_gap_analysis(gaps),
+                        title="[cyan]Nutrient Gap Analysis[/cyan]",
+                        border_style="cyan", box=box.SIMPLE,
+                    ))
 
                 elif q_lower == "/onboard":
                     console.print("[cyan]  Client Onboarding Wizard[/cyan]\n")
@@ -2767,9 +2809,15 @@ class Kiwi:
                         last_query = sub_query
                         last_response = result
 
-                # ── Research ────────────────────────────────────────────────
+                # ── Research (with natural language routing) ──────────────────
 
                 else:
+                    # Check if the query maps to a tool command
+                    route = route_natural_language(query)
+                    if route and route.confidence >= 0.8:
+                        console.print(format_route_suggestion(route))
+                        console.print(f"[dim]  (Type the command above, or just ask your question as-is)[/dim]")
+
                     result = await self.research(query)
                     last_query = query
                     last_response = result
