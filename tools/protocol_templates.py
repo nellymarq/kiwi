@@ -274,6 +274,159 @@ TEMPLATES: dict[str, ProtocolTemplate] = {
 """,
         related_commands=["/hrzones", "/training_plan", "/meal_plan", "/track"],
     ),
+
+    "injury_recovery": ProtocolTemplate(
+        name="Return to Sport After Injury",
+        category="clinical",
+        description="Phased return-to-sport protocol with nutrition for tissue repair",
+        duration="4-12 weeks depending on injury",
+        content="""\
+## Return to Sport Protocol — Template
+
+### Phase 1: Acute (Days 0-7)
+- **Nutrition:** Maintain caloric intake (DO NOT restrict — healing requires energy)
+  - Protein: 2.0-2.5g/kg/day (support tissue repair + prevent muscle loss)
+  - Collagen: 15g + 50mg vitamin C, 30-60 min before rehab exercises
+  - Omega-3: 3-4g EPA+DHA/day (anti-inflammatory, 🟡 evidence for acute phase)
+- **Supplements:** Vitamin D (2000-4000 IU), zinc (15-30mg), vitamin C (500mg)
+- **Activity:** Only prescribed rehab exercises. No training.
+- **Sleep:** 9+ hours — GH release peaks during deep sleep (tissue repair)
+
+### Phase 2: Rehabilitation (Weeks 2-4)
+- **Nutrition:** Slight surplus (+200-300 kcal) to support repair
+- **Collagen:** Continue 15g + vitamin C pre-rehab
+- **Progressive loading:** Follow physiotherapist protocol
+- **Creatine:** Resume 5g/day (supports neuromotor recovery)
+- **HRV monitoring:** Track readiness; don't push on low-readiness days
+
+### Phase 3: Return to Training (Weeks 4-8)
+- **Volume:** Start at 50% of pre-injury volume
+- **Intensity:** 70-80% of pre-injury intensity
+- **Progression:** Increase 10% per week (ten percent rule)
+- **ACWR:** Monitor acute:chronic workload ratio — keep 0.8-1.3
+- **Pain rule:** If pain >3/10 during activity → stop, reassess
+
+### Phase 4: Full Return (Weeks 8-12)
+- **Volume:** 100% of pre-injury
+- **Sport-specific drills:** Gradual reintroduction
+- **Competition clearance:** Only after 2 weeks pain-free at full load
+
+### Red Flags (Seek Physician)
+- Pain increasing despite rest
+- Swelling that doesn't resolve with elevation/ice
+- Loss of range of motion
+- Numbness, tingling, instability
+
+### Related Commands
+/track weight · /readiness · /acwr · /return · /intervention start collagen 15g · /risk_screen
+""",
+        related_commands=["/acwr", "/return", "/readiness", "/intervention start"],
+    ),
+
+    "sleep_optimization": ProtocolTemplate(
+        name="Sleep Optimization for Athletes",
+        category="recovery",
+        description="Evidence-based sleep hygiene and supplementation for recovery",
+        duration="Ongoing",
+        content="""\
+## Sleep Optimization Protocol — Template
+
+### Sleep Targets
+- **Duration:** 8-9 hours for athletes (CDC minimum 7h insufficient for recovery)
+- **Consistency:** Same bedtime/wake time ±30 min (including weekends)
+- **Sleep efficiency:** >85% (time asleep / time in bed)
+
+### Environment
+- **Temperature:** 65-68°F (18-20°C)
+- **Darkness:** Blackout curtains or eye mask (melatonin suppression from light)
+- **Noise:** White noise machine or earplugs
+- **Electronics:** No screens 60 min before bed (or blue-light glasses)
+
+### Pre-Sleep Nutrition
+- **Last meal:** 2-3h before bed (not too full, not hungry)
+- **Casein protein:** 30-40g before bed (sustained amino acid release → overnight MPS)
+- **Tart cherry juice:** 240mL 2x/day (natural melatonin source, 🟡)
+- **Avoid:** Alcohol (disrupts REM), large fluid volumes (nocturia)
+
+### Supplement Protocol
+- **Magnesium glycinate:** 200-400mg, 30-60 min before bed (GABA modulation)
+- **Melatonin:** 0.3-1mg if needed for onset (physiological dose, not pharmacological)
+- **Glycine:** 3g before bed (reduces core temp, improves sleep quality, 🟡)
+- **Ashwagandha:** 300mg KSM-66 at bedtime (reduces cortisol, improves sleep quality)
+
+### Caffeine Management
+- **Cutoff:** No caffeine after 2 PM (or 8h before bedtime)
+- **Half-life awareness:** 5-6h average; slow metabolizers need 10h+ cutoff
+- **Pre-competition:** Withdraw caffeine 5-7 days before, resume race day for re-sensitization
+
+### Chronotype-Specific Adjustments
+- **Lion (early):** Bedtime 9:30-10 PM, wake 5-6 AM
+- **Bear (middle):** Bedtime 10:30-11 PM, wake 6:30-7 AM
+- **Wolf (late):** Bedtime 11:30 PM-midnight, wake 7:30-8 AM
+
+### Monitoring
+- Daily: sleep duration, subjective quality 1-10
+- Weekly: HRV trends (poor sleep → declining rMSSD)
+- Monthly: review patterns, adjust protocol
+
+### Related Commands
+/sleep · /chronotype · /caffeine · /bedtime · /track sleep_hours · /supp melatonin · /supp magnesium
+""",
+        related_commands=["/sleep", "/chronotype", "/caffeine", "/track sleep_hours"],
+    ),
+
+    "gut_health": ProtocolTemplate(
+        name="GI Optimization for Athletes",
+        category="clinical",
+        description="Gut health protocol addressing exercise-induced GI distress",
+        duration="8-12 weeks",
+        content="""\
+## GI Optimization Protocol — Template
+
+### Common Issues in Athletes
+- Exercise-induced GI distress (30-70% of endurance athletes)
+- Leaky gut (increased intestinal permeability from heat/ischemia)
+- IBS-like symptoms during competition
+- Bloating from high-carb loading protocols
+
+### Phase 1: Elimination & Assessment (Weeks 1-2)
+- **Food diary:** Log all foods + GI symptoms + training correlation
+- **Remove common triggers:** FODMAPs trial if bloating/gas
+- **Pre-exercise fasting window:** 2-3h (reduce gastric contents)
+- **Reduce:** NSAIDs (increase gut permeability), excess caffeine
+
+### Phase 2: Gut Repair (Weeks 3-8)
+- **L-glutamine:** 5-10g/day (enterocyte fuel, gut barrier support, 🟡)
+- **Zinc carnosine:** 75mg 2x/day (mucosal protection, 🟡)
+- **Probiotics:** Multi-strain 10 billion CFU (L. rhamnosus GG, B. lactis)
+  - Start at 5 billion, increase over 2 weeks
+- **Collagen:** 10g/day (provides glycine for intestinal repair)
+- **Omega-3:** 2g EPA+DHA (anti-inflammatory, gut barrier integrity)
+
+### Phase 3: Gut Training (Weeks 6-12)
+- **Train your gut:** Practice race nutrition during training
+- **Start low:** 30g/h carbs during exercise, increase 10g/h per week
+- **Target:** 60-90g/h for events >2.5h
+- **Multiple transportable carbs:** Glucose:fructose 2:1 ratio
+- **Nothing new on race day:** Only tested nutrition in competition
+
+### Pre-Competition GI Protocol
+- **Day -3 to -1:** Low-fiber, low-residue diet
+- **Race morning:** Familiar foods only, 3h before start
+- **During:** Practiced carb/fluid protocol
+- **Avoid:** High-fat, high-fiber, dairy (if sensitive), artificial sweeteners
+
+### Red Flags (Refer Out)
+- Blood in stool
+- Unintentional weight loss >5%
+- Persistent symptoms despite protocol
+- Iron deficiency from GI losses
+
+### Related Commands
+/supp probiotics · /supp bromelain · /food · /track weight · /intervention start glutamine 10g · /risk_screen
+""",
+        related_commands=["/supp probiotics", "/food", "/intervention start", "/risk_screen"],
+    ),
 }
 
 

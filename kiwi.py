@@ -623,6 +623,7 @@ class Kiwi:
 
         last_query = ""
         last_response = ""
+        last_output = ""  # Captures output from any agent command for /pdf_last
         last_critique: dict = {}
         last_score = 0.0
 
@@ -989,6 +990,7 @@ class Kiwi:
                                 "papers_context": papers_ctx,
                                 "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
                             })
+                            last_output = result
                             console.print(result)
 
                 elif q_lower.startswith("/review "):
@@ -1009,6 +1011,7 @@ class Kiwi:
                                 "papers_context": papers_ctx,
                                 "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
                             })
+                            last_output = result
                             console.print(result)
 
                 elif q_lower.startswith("/watch "):
@@ -1118,6 +1121,7 @@ class Kiwi:
                             "research_context": research_ctx,
                             "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
                         })
+                        last_output = result
                         console.print(result)
 
                 elif q_lower.startswith("/meal_plan") or q_lower.startswith("/mealplan"):
@@ -1162,6 +1166,7 @@ class Kiwi:
                             "dietary_restrictions": restrictions_text,
                             "goal": goal,
                         })
+                        last_output = result
                         console.print(result)
 
                 elif q_lower.startswith("/training_plan") or q_lower.startswith("/trainingplan"):
@@ -1193,6 +1198,7 @@ class Kiwi:
                         "current_load": "",
                         "frequency": 4,
                     })
+                    last_output = result
                     console.print(result)
 
                 elif q_lower.startswith("/fight_prep") or q_lower.startswith("/race_prep"):
@@ -1214,6 +1220,7 @@ class Kiwi:
                         "current_supplements": supplements_text,
                         "notes": notes,
                     })
+                    last_output = result
                     console.print(result)
 
                 elif q_lower.startswith("/import_labs "):
@@ -1362,6 +1369,7 @@ class Kiwi:
                         "supplement_db_summary": db_summary,
                         "interaction_data": "",
                     })
+                    last_output = result
                     console.print(result)
 
                 elif q_lower == "/risk_screen" or q_lower.startswith("/risk_screen "):
@@ -1393,6 +1401,7 @@ class Kiwi:
                         "training_load": "",
                         "notes": notes,
                     })
+                    last_output = result
                     console.print(result)
 
                 elif q_lower == "/suggest_research" or q_lower.startswith("/suggest_research "):
@@ -1434,6 +1443,7 @@ class Kiwi:
                         "recent_research": recent_text,
                         "progress_data": progress_text,
                     })
+                    last_output = result
                     console.print(result)
 
                 elif q_lower.startswith("/template"):
@@ -1683,6 +1693,25 @@ class Kiwi:
                     else:
                         console.print("[dim]  Usage: /autoquality <paper title or title + abstract>[/dim]")
 
+                elif q_lower == "/pdf_last":
+                    if not last_output:
+                        console.print("[dim]  No command output to export. Run a command first.[/dim]")
+                    else:
+                        try:
+                            practitioner = self.profile.get("name") or ""
+                            brand = BrandConfig(practitioner=practitioner)
+                            pdf_path = generate_client_report(
+                                query=last_query or "Command Output",
+                                response=last_output,
+                                score=last_score,
+                                critique_data={},
+                                brand=brand,
+                                client_name=self.active_client_name,
+                            )
+                            console.print(f"[dim]  PDF exported: [cyan]{pdf_path}[/cyan][/dim]")
+                        except Exception as e:
+                            console.print(f"[dim red]  PDF export failed: {e}[/dim red]")
+
                 elif q_lower == "/pdf" or q_lower.startswith("/pdf "):
                     if not last_response:
                         console.print("[dim]  No research session to export yet.[/dim]")
@@ -1766,6 +1795,7 @@ class Kiwi:
                             "supplement_options": supp_options,
                             "interaction_check": interaction_text,
                         })
+                        last_output = result
                         console.print(result)
 
                 elif q_lower.startswith("/accepted"):
@@ -2582,7 +2612,8 @@ class Kiwi:
                     proto = resolve_supplement(name)
                     if proto:
                         sport = self.profile.data.get("sport", "general")
-                        output = format_dosing_protocol(proto, sport)
+                        weight = self.profile.get("weight_kg")
+                        output = format_dosing_protocol(proto, sport, weight_kg=weight)
                         console.print(Panel(output, title=f"[cyan]{proto.name}[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
                     else:
                         console.print(f"[yellow]  Supplement '{name}' not found. Try /supplist to see all options.[/yellow]")

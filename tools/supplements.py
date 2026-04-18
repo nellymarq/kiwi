@@ -1296,8 +1296,24 @@ def resolve_supplement(name: str) -> Optional[DosingProtocol]:
     return None
 
 
-def format_dosing_protocol(protocol: DosingProtocol, sport: str = "general") -> str:
-    """Human-readable dosing protocol report."""
+def _personalize_dose(dose_str: str, weight_kg: float) -> str:
+    """Extract g/kg or mg/kg patterns and compute personalized dose."""
+    import re
+    personalized = []
+    for match in re.finditer(r"([\d.]+)\s*[–-]\s*([\d.]+)\s*(g|mg)/kg", dose_str):
+        low = float(match.group(1)) * weight_kg
+        high = float(match.group(2)) * weight_kg
+        unit = match.group(3)
+        personalized.append(f"{low:.0f}–{high:.0f}{unit}")
+    for match in re.finditer(r"([\d.]+)\s*(g|mg)/kg", dose_str):
+        val = float(match.group(1)) * weight_kg
+        unit = match.group(2)
+        personalized.append(f"{val:.0f}{unit}")
+    return ", ".join(personalized) if personalized else ""
+
+
+def format_dosing_protocol(protocol: DosingProtocol, sport: str = "general", weight_kg: float | None = None) -> str:
+    """Human-readable dosing protocol report. Optionally personalizes doses by weight."""
     lines = [
         f"═══ {protocol.name} ═══",
         f"Category: {protocol.category.title()}",
@@ -1307,7 +1323,15 @@ def format_dosing_protocol(protocol: DosingProtocol, sport: str = "general") -> 
     ]
     if protocol.loading_dose:
         lines.append(f"  Loading  : {protocol.loading_dose}")
+        if weight_kg:
+            personal = _personalize_dose(protocol.loading_dose, weight_kg)
+            if personal:
+                lines.append(f"             → For {weight_kg:.0f}kg: {personal}")
     lines.append(f"  Maintain : {protocol.maintenance_dose}")
+    if weight_kg:
+        personal = _personalize_dose(protocol.maintenance_dose, weight_kg)
+        if personal:
+            lines.append(f"             → For {weight_kg:.0f}kg: {personal}")
     lines.append(f"  Timing   : {protocol.timing}")
     lines.append(f"  Duration : {protocol.duration}")
     lines.append(f"  Onset    : {protocol.onset_time}")
