@@ -146,6 +146,9 @@ from tools.contradiction import detect_contradictions, format_contradictions
 from tools.command_router import route_natural_language, format_route_suggestion
 from tools.protocol_templates import get_template, list_templates
 from tools.nutrient_gaps import analyze_gaps, format_gap_analysis
+from tools.knowledge_frontier import analyze_frontiers, format_frontiers
+from tools.freshness import format_freshness_report
+from agents.daily_brief import DailyBriefAgent
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -334,6 +337,7 @@ class Kiwi:
         self.stack_optimizer_agent = StackOptimizerAgent(self.client)
         self.risk_screen_agent = RiskScreenAgent(self.client)
         self.question_gen_agent = QuestionGenAgent(self.client)
+        self.daily_brief_agent = DailyBriefAgent(self.client)
         self.progress = ProgressTracker(client=self.active_client_name)
         self.interventions = InterventionTracker(client=self.active_client_name)
         self.watch_list = WatchList(client=self.active_client_name)
@@ -655,7 +659,8 @@ class Kiwi:
                         "[bold]Quality:[/bold]   /autoquality <title> · /quality <tool>\n"
                         "[bold]Analytics:[/bold] /effect <m1 sd1 n1 m2 sd2 n2> · /readpdf <doi> · /cost · /team\n"
                         "[bold]Progress:[/bold]  /track <metric> <value> · /trends <metric> · /dashboard\n"
-                        "[bold]Optimize:[/bold]  /optimize_stack · /risk_screen · /suggest_research · /onboard · /summary\n"
+                        "[bold]Optimize:[/bold]  /optimize_stack · /risk_screen · /suggest_research · /gaps · /frontiers\n"
+                        "[bold]Intel:[/bold]     /brief · /freshness · /onboard · /summary\n"
                         "[bold]Orchestration:[/bold] /review <topic> · /watch <topic> · /watched · /digest\n"
                         "[bold]Clients:[/bold]    /clients · /new_client <name> · /switch_client <name> · /delete_client <name>\n"
                         "[bold]Memory:[/bold]   /memory · /remember <note> · /export · /archive <keywords> · /stale\n"
@@ -1465,6 +1470,75 @@ class Kiwi:
                             ))
                         else:
                             console.print(f"[dim red]  Template '{name}' not found. Use /template to list.[/dim red]")
+
+                elif q_lower == "/frontiers":
+                    profile_data = self.profile.to_dict()
+                    # Gather tracked metrics
+                    tracked = {}
+                    for m in self.progress.get_all_metrics():
+                        history = self.progress.get_history(m, limit=50)
+                        tracked[m] = [h["value"] for h in history]
+                    # Gather research history
+                    research_queries = [
+                        e.get("query", "").lower()
+                        for e in self.memory.get_recent_episodic(50)
+                    ]
+                    gaps = analyze_frontiers(profile_data, tracked, research_queries)
+                    console.print(Panel(
+                        format_frontiers(gaps),
+                        title="[cyan]Research Frontiers[/cyan]",
+                        border_style="cyan", box=box.SIMPLE,
+                    ))
+
+                elif q_lower == "/freshness":
+                    output = format_freshness_report()
+                    console.print(Panel(
+                        output,
+                        title="[cyan]Evidence Freshness[/cyan]",
+                        border_style="cyan", box=box.SIMPLE,
+                    ))
+
+                elif q_lower == "/brief":
+                    profile_summary = self.profile.to_summary()
+
+                    # Progress trends
+                    progress_lines = []
+                    for m in self.progress.get_all_metrics():
+                        history = self.progress.get_history(m, limit=7)
+                        if history:
+                            latest = history[-1]
+                            vals = [h["value"] for h in history]
+                            direction = "↑" if len(vals) > 1 and vals[-1] > vals[0] else "↓" if len(vals) > 1 and vals[-1] < vals[0] else "→"
+                            progress_lines.append(
+                                f"  {m}: {latest['value']:.1f} {latest.get('unit', '')} {direction} "
+                                f"(last {len(vals)})")
+                    progress_text = "\n".join(progress_lines) if progress_lines else "No progress data"
+
+                    # Active interventions
+                    interventions_text = self.interventions.format_active()
+
+                    # Research gaps (lightweight)
+                    profile_data = self.profile.to_dict()
+                    tracked = {}
+                    for m in self.progress.get_all_metrics():
+                        history = self.progress.get_history(m, limit=10)
+                        tracked[m] = [h["value"] for h in history]
+                    research_queries = [e.get("query", "").lower() for e in self.memory.get_recent_episodic(20)]
+                    frontier_gaps = analyze_frontiers(profile_data, tracked, research_queries)
+                    gaps_text = "\n".join(
+                        f"  [{g.priority}] {g.topic}" for g in frontier_gaps[:5]
+                    ) if frontier_gaps else "No critical gaps"
+
+                    console.print("[dim]  Generating daily brief...[/dim]\n")
+                    last_output = await self.daily_brief_agent.run({
+                        "profile_summary": profile_summary,
+                        "progress_data": progress_text,
+                        "interventions": interventions_text,
+                        "risk_flags": "",
+                        "research_gaps": gaps_text,
+                        "biomarker_due": "",
+                    })
+                    console.print(last_output)
 
                 elif q_lower == "/gaps":
                     sex = self.profile.get("sex") or "male"
