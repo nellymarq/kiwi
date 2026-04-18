@@ -151,6 +151,8 @@ from tools.freshness import format_freshness_report
 from agents.daily_brief import DailyBriefAgent
 from tools.timing_schedule import generate_timing_schedule, check_separation_conflicts, format_timing_schedule
 from tools.client_export import export_client
+from tools.oura import OuraClient
+from tools.wearable_import import import_file as import_wearable_file, format_import_result
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1271,6 +1273,62 @@ class Kiwi:
             })
             self._state["last_output"] = result
             console.print(result)
+
+        elif q_lower.startswith("/oura "):
+            subcmd = query[6:].strip().lower()
+            if subcmd.startswith("sync"):
+                # Get Oura token from config or env
+                import os
+                token = self.config.get("oura_token", "") or os.environ.get("OURA_TOKEN", "")
+                if not token:
+                    console.print(
+                        "[dim red]  No Oura token. Set OURA_TOKEN env var or add oura_token to ~/.kiwi/config.json[/dim red]\n"
+                        "[dim]  Get your token at: https://cloud.ouraring.com/personal-access-tokens[/dim]"
+                    )
+                else:
+                    days = 7
+                    parts = subcmd.split()
+                    if len(parts) > 1:
+                        try:
+                            days = int(parts[1])
+                        except ValueError:
+                            pass
+                    console.print(f"[dim]  Syncing last {days} days from Oura Ring...[/dim]")
+                    oura = OuraClient(token)
+                    summaries = oura.sync_days(days_back=days)
+                    if summaries:
+                        console.print(Panel(
+                            oura.format_sync_report(summaries),
+                            title="[cyan]Oura Ring Sync[/cyan]",
+                            border_style="cyan", box=box.SIMPLE,
+                        ))
+                        # Auto-populate progress tracker
+                        imported = 0
+                        for s in summaries:
+                            for metric, value in s.to_metrics().items():
+                                self.progress.record(metric, value, note="oura sync")
+                                imported += 1
+                        console.print(f"[dim]  {imported} data points imported to progress tracker[/dim]")
+                    else:
+                        console.print("[dim red]  No data returned. Check your token and try again.[/dim red]")
+            else:
+                console.print("[dim]  Usage: /oura sync [days]  (default: 7 days)[/dim]")
+
+        elif q_lower.startswith("/import_wearable "):
+            filepath = query[17:].strip()
+            if filepath:
+                records, result = import_wearable_file(filepath)
+                console.print(Panel(
+                    format_import_result(result),
+                    title="[cyan]Wearable Import[/cyan]",
+                    border_style="cyan", box=box.SIMPLE,
+                ))
+                if records:
+                    for r in records:
+                        self.progress.record(r["metric"], r["value"], note=f"import {result.format_detected}")
+                    console.print(f"[dim]  {len(records)} data points added to progress tracker[/dim]")
+            else:
+                console.print("[dim]  Usage: /import_wearable <path/to/file.csv or .json>[/dim]")
 
         elif q_lower.startswith("/import_labs "):
             parts = query[12:].strip().split()
