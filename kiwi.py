@@ -149,6 +149,8 @@ from tools.nutrient_gaps import analyze_gaps, format_gap_analysis
 from tools.knowledge_frontier import analyze_frontiers, format_frontiers
 from tools.freshness import format_freshness_report
 from agents.daily_brief import DailyBriefAgent
+from tools.timing_schedule import generate_timing_schedule, check_separation_conflicts, format_timing_schedule
+from tools.client_export import export_client
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1539,6 +1541,34 @@ class Kiwi:
                         "biomarker_due": "",
                     })
                     console.print(last_output)
+
+                elif q_lower == "/timing":
+                    supplements = self.profile.get("current_supplements") or []
+                    if not supplements:
+                        console.print("[dim]  No supplements on file. Set with /profile set current_supplements creatine,caffeine,...[/dim]")
+                    else:
+                        schedule = generate_timing_schedule(supplements)
+                        conflicts = check_separation_conflicts(supplements)
+                        console.print(Panel(
+                            format_timing_schedule(schedule, conflicts),
+                            title="[cyan]Daily Supplement Timing[/cyan]",
+                            border_style="cyan", box=box.SIMPLE,
+                        ))
+
+                elif q_lower == "/retest_due":
+                    output = self.interventions.format_retest_due()
+                    console.print(Panel(
+                        output,
+                        title="[cyan]Biomarker Retests Due[/cyan]",
+                        border_style="cyan", box=box.SIMPLE,
+                    ))
+
+                elif q_lower == "/export_client":
+                    try:
+                        path = export_client(self.active_client_name)
+                        console.print(f"[dim]  Client exported to: [cyan]{path}[/cyan][/dim]")
+                    except Exception as e:
+                        console.print(f"[dim red]  Export failed: {e}[/dim red]")
 
                 elif q_lower == "/gaps":
                     sex = self.profile.get("sex") or "male"

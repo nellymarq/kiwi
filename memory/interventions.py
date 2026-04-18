@@ -9,7 +9,7 @@ Storage: ~/.kiwi/clients/<name>/interventions.json
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -186,4 +186,62 @@ class InterventionTracker:
         if "assessment" in result:
             lines.append(f"")
             lines.append(f"Result: {result['assessment']}")
+        return "\n".join(lines)
+
+    # Standard retest intervals by metric (weeks)
+    RETEST_INTERVALS: dict[str, int] = {
+        "ferritin": 6, "hemoglobin": 6, "vitamin_d": 8,
+        "testosterone": 8, "cortisol": 4, "tsh": 8,
+        "free_t3": 8, "free_t4": 8, "hba1c": 12,
+        "ldl": 8, "hdl": 8, "triglycerides": 8,
+        "homocysteine": 8, "crp": 6, "fasting_insulin": 8,
+        "dhea_s": 12, "estradiol": 4, "progesterone": 4,
+    }
+
+    def retest_due(self) -> list[dict]:
+        """Check which interventions have target metrics due for retest."""
+        now = datetime.now(timezone.utc)
+        due = []
+        for entry in self.data:
+            if entry["status"] != "active":
+                continue
+            target = entry.get("target_metric", "")
+            if not target:
+                continue
+            started = entry.get("started_at", "")
+            if not started:
+                continue
+            try:
+                start_dt = datetime.fromisoformat(started.replace("Z", "+00:00"))
+                if start_dt.tzinfo is None:
+                    start_dt = start_dt.replace(tzinfo=timezone.utc)
+            except (ValueError, TypeError):
+                continue
+            interval_weeks = self.RETEST_INTERVALS.get(target, 6)
+            retest_date = start_dt + timedelta(weeks=interval_weeks)
+            if now >= retest_date:
+                weeks_overdue = int((now - retest_date).days / 7)
+                due.append({
+                    "intervention": entry["name"],
+                    "target_metric": target,
+                    "started": started[:10],
+                    "retest_after": retest_date.strftime("%Y-%m-%d"),
+                    "weeks_overdue": weeks_overdue,
+                    "status": "OVERDUE" if weeks_overdue > 0 else "DUE NOW",
+                })
+        return due
+
+    def format_retest_due(self) -> str:
+        """Format retest-due items for display."""
+        due = self.retest_due()
+        if not due:
+            return "No biomarkers due for retest."
+        lines = ["Biomarker Retests Due:", ""]
+        for d in due:
+            icon = "🔴" if d["weeks_overdue"] > 2 else "🟡" if d["weeks_overdue"] > 0 else "🟢"
+            lines.append(
+                f"  {icon} {d['target_metric']} — for {d['intervention']} "
+                f"(started {d['started']}, retest after {d['retest_after']}, "
+                f"{d['status']})"
+            )
         return "\n".join(lines)
