@@ -696,8 +696,17 @@ class Kiwi:
                 # ── Session Commands ────────────────────────────────────────
 
                 elif q_lower in ("/quit", "/exit", "quit", "exit"):
+                    # Auto-save session on exit
+                    if self.messages:
+                        session_id = f"auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                        summary = last_query[:200] if last_query else ""
+                        save_session(session_id, self.messages, self.active_thread, summary, self.active_client_name)
+                        console.print(f"[dim]  Session auto-saved: {session_id}[/dim]")
+                    # Log session cost
+                    if self.cost.call_count() > 0:
+                        console.print(f"[dim]  API cost: ${self.cost.total_cost_usd():.4f} ({self.cost.call_count()} calls)[/dim]")
                     console.print(
-                        f"\n[dim]  Session #{session_num} complete. "
+                        f"[dim]  Session #{session_num} complete. "
                         f"Memory saved to {Path.home() / '.kiwi'}[/dim]"
                     )
                     break
@@ -1597,6 +1606,55 @@ class Kiwi:
                                                 border_style="cyan", box=box.SIMPLE))
                         except Exception as e:
                             console.print(f"[dim red]  Error: {e}[/dim red]")
+
+                elif q_lower == "/weekly_report":
+                    profile_summary = self.profile.to_summary()
+
+                    # Gather all client data for the report
+                    progress_lines = []
+                    for m in self.progress.get_all_metrics():
+                        history = self.progress.get_history(m, limit=30)
+                        if history:
+                            vals = [h["value"] for h in history]
+                            latest = history[-1]
+                            trend = self.progress.format_trend(m, limit=10)
+                            progress_lines.append(trend)
+                    progress_text = "\n\n".join(progress_lines) if progress_lines else "No progress data tracked"
+
+                    interventions_text = self.interventions.format_active()
+                    retest_text = self.interventions.format_retest_due()
+                    dashboard = self.progress.format_dashboard()
+
+                    # Build report content
+                    report_content = (
+                        f"Weekly Progress Report\n"
+                        f"Client: {self.active_client_name}\n"
+                        f"{'=' * 40}\n\n"
+                        f"Profile:\n{profile_summary}\n\n"
+                        f"{'─' * 40}\n"
+                        f"Current Metrics:\n{dashboard}\n\n"
+                        f"{'─' * 40}\n"
+                        f"Trends:\n{progress_text}\n\n"
+                        f"{'─' * 40}\n"
+                        f"Interventions:\n{interventions_text}\n\n"
+                        f"{'─' * 40}\n"
+                        f"Retests Due:\n{retest_text}\n"
+                    )
+
+                    try:
+                        practitioner = self.profile.get("name") or ""
+                        brand = BrandConfig(practitioner=practitioner)
+                        pdf_path = generate_client_report(
+                            query=f"Weekly Report — {self.active_client_name}",
+                            response=report_content,
+                            score=0.0,
+                            critique_data={},
+                            brand=brand,
+                            client_name=self.active_client_name,
+                        )
+                        console.print(f"[dim]  Weekly report exported: [cyan]{pdf_path}[/cyan][/dim]")
+                    except Exception as e:
+                        console.print(f"[dim red]  Report failed: {e}[/dim red]")
 
                 elif q_lower == "/capabilities":
                     caps = (
@@ -3039,8 +3097,10 @@ class Kiwi:
                     result = await self.research(query)
                     last_query = query
                     last_response = result
-                    # These are set during research — capture from orchestrator state
-                    # (critique captured via display_rwl_checkpoint in research())
+                    last_output = result
+                    # Log to structured session log
+                    log_exchange(query, "research", score=last_score, thread=self.active_thread,
+                                client=self.active_client_name)
 
             except KeyboardInterrupt:
                 console.print("\n[dim]  Use /quit to exit cleanly.[/dim]")
