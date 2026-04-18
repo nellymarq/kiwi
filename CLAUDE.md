@@ -2,7 +2,7 @@
 
 ## Quick Reference
 - Launch: `python3 kiwi.py`
-- Tests: `python3 -m pytest tests/ -x -q` (1223 tests)
+- Tests: `python3 -m pytest tests/ -x -q` (1302 tests)
 - GitHub: `nellymarq/kiwi`
 - Always run tests before committing code changes.
 

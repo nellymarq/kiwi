@@ -183,6 +183,60 @@ class SportsCalc:
         }
 
     @staticmethod
+    def macro_periodization(
+        weight_kg: float,
+        tdee: float,
+        sex: str = "male",
+        goal: str = "maintenance",
+    ) -> dict[str, dict[str, float]]:
+        """
+        Training day vs rest day macro splits.
+        Based on ISSN/IOC recommendations for nutrient periodization.
+
+        Returns dicts for training_day and rest_day with kcal, protein_g, carb_g, fat_g.
+        """
+        # Goal-based caloric adjustment
+        adjustments = {
+            "performance": (0, 0), "maintenance": (0, 0),
+            "body_composition": (-300, -500), "health": (0, 0),
+            "longevity": (-200, -200),
+        }
+        train_adj, rest_adj = adjustments.get(goal.lower(), (0, 0))
+
+        # Training day: higher carbs, moderate fat
+        train_kcal = round(tdee + 200 + train_adj)
+        train_protein = round(weight_kg * 2.0)  # 2.0 g/kg (ISSN)
+        train_carb = round(weight_kg * 5.0)     # 5.0 g/kg (high)
+        train_fat_kcal = train_kcal - (train_protein * 4 + train_carb * 4)
+        train_fat = round(max(train_fat_kcal / 9, weight_kg * 0.8))
+
+        # Rest day: lower carbs, higher fat
+        rest_kcal = round(tdee - 100 + rest_adj)
+        rest_protein = round(weight_kg * 2.0)   # Keep protein same
+        rest_carb = round(weight_kg * 3.0)       # 3.0 g/kg (moderate)
+        rest_fat_kcal = rest_kcal - (rest_protein * 4 + rest_carb * 4)
+        rest_fat = round(max(rest_fat_kcal / 9, weight_kg * 1.0))
+
+        return {
+            "training_day": {
+                "kcal": train_kcal,
+                "protein_g": train_protein,
+                "carb_g": train_carb,
+                "fat_g": train_fat,
+                "protein_g_per_kg": 2.0,
+                "carb_g_per_kg": 5.0,
+            },
+            "rest_day": {
+                "kcal": rest_kcal,
+                "protein_g": rest_protein,
+                "carb_g": rest_carb,
+                "fat_g": rest_fat,
+                "protein_g_per_kg": 2.0,
+                "carb_g_per_kg": 3.0,
+            },
+        }
+
+    @staticmethod
     def compute_full_metrics(
         weight_kg: float,
         height_cm: float,

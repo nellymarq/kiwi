@@ -1531,16 +1531,99 @@ class Kiwi:
                         f"  [{g.priority}] {g.topic}" for g in frontier_gaps[:5]
                     ) if frontier_gaps else "No critical gaps"
 
+                    # Retest alerts
+                    retest_text = self.interventions.format_retest_due()
+
+                    # Timing schedule
+                    supplements = self.profile.get("current_supplements") or []
+                    timing_text = ""
+                    if supplements:
+                        schedule = generate_timing_schedule(supplements)
+                        timing_text = format_timing_schedule(schedule)
+
                     console.print("[dim]  Generating daily brief...[/dim]\n")
-                    last_output = await self.daily_brief_agent.run({
+                    brief_context = {
                         "profile_summary": profile_summary,
                         "progress_data": progress_text,
                         "interventions": interventions_text,
-                        "risk_flags": "",
+                        "risk_flags": retest_text if "OVERDUE" in retest_text or "DUE NOW" in retest_text else "",
                         "research_gaps": gaps_text,
-                        "biomarker_due": "",
-                    })
+                        "biomarker_due": retest_text if "No biomarkers" not in retest_text else "",
+                    }
+                    last_output = await self.daily_brief_agent.run(brief_context)
                     console.print(last_output)
+
+                    # Append timing schedule if available
+                    if timing_text and supplements:
+                        console.print(f"\n[dim]{timing_text}[/dim]")
+
+                elif q_lower == "/macros":
+                    missing = [f for f in ("weight_kg", "height_cm", "age", "sex", "activity_level")
+                               if not self.profile.get(f)]
+                    if missing:
+                        console.print(f"[dim]  Missing: {', '.join(missing)}[/dim]")
+                    else:
+                        try:
+                            m = self.calc.compute_full_metrics(
+                                weight_kg=self.profile.get("weight_kg"),
+                                height_cm=self.profile.get("height_cm"),
+                                age=self.profile.get("age"),
+                                sex=self.profile.get("sex"),
+                                activity_level=self.profile.get("activity_level"),
+                                body_fat_pct=self.profile.get("body_fat_pct"),
+                            )
+                            goal = self.profile.get("primary_goal") or "performance"
+                            macros = self.calc.macro_periodization(
+                                weight_kg=self.profile.get("weight_kg"),
+                                tdee=m.tdee,
+                                sex=self.profile.get("sex"),
+                                goal=goal,
+                            )
+                            td = macros["training_day"]
+                            rd = macros["rest_day"]
+                            lines = [
+                                f"Macro Periodization — {self.profile.get('weight_kg'):.0f}kg · {goal}",
+                                "",
+                                f"{'':>16} {'Training Day':>16} {'Rest Day':>16}",
+                                "─" * 50,
+                                f"{'Calories':>16} {td['kcal']:>13} kcal {rd['kcal']:>13} kcal",
+                                f"{'Protein':>16} {td['protein_g']:>10}g ({td['protein_g_per_kg']:.1f}/kg) {rd['protein_g']:>10}g ({rd['protein_g_per_kg']:.1f}/kg)",
+                                f"{'Carbs':>16} {td['carb_g']:>10}g ({td['carb_g_per_kg']:.1f}/kg) {rd['carb_g']:>10}g ({rd['carb_g_per_kg']:.1f}/kg)",
+                                f"{'Fat':>16} {td['fat_g']:>13}g {rd['fat_g']:>13}g",
+                                "",
+                                "Evidence: ISSN (Kerksick et al. 2018)",
+                            ]
+                            console.print(Panel("\n".join(lines), title="[cyan]Macro Periodization[/cyan]",
+                                                border_style="cyan", box=box.SIMPLE))
+                        except Exception as e:
+                            console.print(f"[dim red]  Error: {e}[/dim red]")
+
+                elif q_lower == "/capabilities":
+                    caps = (
+                        "[bold cyan]RESEARCH[/bold cyan]\n"
+                        "  Ask any question · /synthesize · /review (PRISMA) · /n_of_1\n"
+                        "  /pubmed · /openalex · /trials · /tldr · /readpdf · /citedby\n"
+                        "  /grade · /quality · /autoquality · /effect · /freshness\n\n"
+                        "[bold cyan]ATHLETE MANAGEMENT[/bold cyan]\n"
+                        "  /clients · /new_client · /switch_client · /onboard · /snapshot\n"
+                        "  /compare_clients · /team · /export_client\n\n"
+                        "[bold cyan]DAILY WORKFLOW[/bold cyan]\n"
+                        "  /brief · /timing · /retest_due · /frontiers · /gaps · /suggest_research\n\n"
+                        "[bold cyan]BIOMARKERS & TRACKING[/bold cyan]\n"
+                        "  /import_labs · /track · /trends · /dashboard · /labs · /biomarker\n"
+                        "  /intervention start|stop|check|list · /risk_screen\n\n"
+                        "[bold cyan]NUTRITION[/bold cyan]\n"
+                        "  /macros · /meal_plan · /calc · /food · /food+ · /compare\n"
+                        "  /supp · /supplist · /check · /interact · /optimize_stack\n\n"
+                        "[bold cyan]TRAINING[/bold cyan]\n"
+                        "  /training_plan · /fight_prep · /race_prep · /template\n"
+                        "  /session · /load · /blocks · /prilepin · /hrzones · /powerzones\n\n"
+                        "[bold cyan]DELIVERY[/bold cyan]\n"
+                        "  /pdf · /pdf_last · /export · /save_session · /resume_session\n"
+                        "  /accepted · /rejected · /watch · /digest · /cost"
+                    )
+                    console.print(Panel(caps, title="[bold cyan]Kiwi Capabilities[/bold cyan]",
+                                        border_style="cyan", box=box.ROUNDED))
 
                 elif q_lower == "/timing":
                     supplements = self.profile.get("current_supplements") or []
