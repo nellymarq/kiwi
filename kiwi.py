@@ -79,11 +79,6 @@ from tools.hydration import (
 )
 from agents.sports_agent import run_sports_assessment
 from tools.supplements import resolve_supplement, format_dosing_protocol, list_supplements_by_category
-from tools.body_composition import (
-    estimate_body_fat_jackson_pollock_3, analyze_body_composition,
-    calculate_ffmi, calculate_energy_availability, safe_weight_change_rate,
-    format_composition_report, SPORT_BF_TARGETS,
-)
 from tools.injury_prevention import (
     calculate_acwr, format_acwr_report,
     get_prevention_protocol, format_prevention_protocol,
@@ -164,6 +159,13 @@ from handlers.training_zones import (
     handle_pacezones,
     handle_powerzones,
     handle_vo2max,
+)
+from handlers.body_composition import (
+    handle_bodyfat,
+    handle_ea,
+    handle_ffmi,
+    handle_skinfold,
+    handle_weightplan,
 )
 
 # ── Console ───────────────────────────────────────────────────────────────────
@@ -3205,91 +3207,19 @@ class Kiwi:
         # ── Body Composition ──────────────────────────────────────────
 
         elif q_lower.startswith("/skinfold "):
-            parts = query[10:].strip().split()
-            if len(parts) >= 5:
-                sex, age_s = parts[0], parts[1]
-                s1, s2, s3 = float(parts[2]), float(parts[3]), float(parts[4])
-                age = int(age_s)
-                if sex.lower() == "male":
-                    bf = estimate_body_fat_jackson_pollock_3(sex, age, skinfold_chest_mm=s1, skinfold_abdomen_mm=s2, skinfold_thigh_mm=s3)
-                else:
-                    bf = estimate_body_fat_jackson_pollock_3(sex, age, skinfold_tricep_mm=s1, skinfold_suprailiac_mm=s2, skinfold_thigh_mm=s3)
-                console.print(Panel(f"Estimated Body Fat: {bf:.1f}% (Jackson-Pollock 3-site)", title="[cyan]Skinfold Estimation[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                console.print("[dim]  Usage: /skinfold <sex> <age> <site1_mm> <site2_mm> <site3_mm>[/dim]")
-                console.print("[dim]  Males: chest, abdomen, thigh | Females: tricep, suprailiac, thigh[/dim]")
+            handle_skinfold(self, query, q_lower)
 
         elif q_lower.startswith("/bodyfat "):
-            parts = query[9:].strip().split()
-            if len(parts) >= 2:
-                wt, bf_pct = float(parts[0]), float(parts[1])
-                sport = parts[2] if len(parts) > 2 else self.profile.data.get("sport", "general_fitness")
-                sex = self.profile.data.get("sex", "male")
-                ht = self.profile.data.get("height_cm", 175)
-                result = analyze_body_composition(wt, bf_pct, sex, ht, sport)
-                ffmi = calculate_ffmi(wt, bf_pct, ht)
-                report = format_composition_report(result, ffmi=ffmi)
-                console.print(Panel(report, title="[cyan]Body Composition Analysis[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                console.print("[dim]  Usage: /bodyfat <weight_kg> <body_fat_%> [sport][/dim]")
+            handle_bodyfat(self, query, q_lower)
 
         elif q_lower.startswith("/ffmi "):
-            parts = query[5:].strip().split()
-            if len(parts) >= 3:
-                wt, bf_pct, ht = float(parts[0]), float(parts[1]), float(parts[2])
-                result = calculate_ffmi(wt, bf_pct, ht)
-                lines = [
-                    f"FFMI: {result.ffmi:.1f} kg/m²",
-                    f"Adjusted FFMI: {result.adjusted_ffmi:.1f} kg/m² (normalized to 1.80m)",
-                    f"Interpretation: {result.interpretation}",
-                    f"{result.natural_limit_note}",
-                    f"Evidence: {result.evidence}",
-                ]
-                console.print(Panel("\n".join(lines), title="[cyan]Fat-Free Mass Index[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                console.print("[dim]  Usage: /ffmi <weight_kg> <body_fat_%> <height_cm>[/dim]")
+            handle_ffmi(self, query, q_lower)
 
         elif q_lower.startswith("/ea "):
-            parts = query[4:].strip().split()
-            if len(parts) >= 3:
-                intake, exercise, lm = float(parts[0]), float(parts[1]), float(parts[2])
-                ea = calculate_energy_availability(intake, exercise, lm)
-                lines = [
-                    f"Energy Availability: {ea.ea_kcal_per_kg_ffm:.1f} kcal/kg FFM/day",
-                    f"Status: {ea.status.upper()}",
-                    f"Risk Level: {ea.risk_level.upper()}",
-                ]
-                if ea.consequences:
-                    lines.append("\nConsequences:")
-                    for c in ea.consequences:
-                        lines.append(f"  • {c}")
-                if ea.recommendations:
-                    lines.append("\nRecommendations:")
-                    for r in ea.recommendations:
-                        lines.append(f"  • {r}")
-                console.print(Panel("\n".join(lines), title="[cyan]Energy Availability (RED-S Screening)[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                console.print("[dim]  Usage: /ea <energy_intake_kcal> <exercise_expenditure_kcal> <lean_mass_kg>[/dim]")
+            handle_ea(self, query, q_lower)
 
         elif q_lower.startswith("/weightplan "):
-            parts = query[12:].strip().split()
-            if len(parts) >= 3:
-                now_kg, goal_kg, bf = float(parts[0]), float(parts[1]), float(parts[2])
-                goal = parts[3] if len(parts) > 3 else "fat_loss"
-                sex = self.profile.data.get("sex", "male")
-                wc = safe_weight_change_rate(now_kg, goal_kg, bf, sex, goal)
-                lines = [
-                    f"Direction: {wc.direction.title()}",
-                    f"Rate: {wc.rate_kg_per_week:.2f} kg/week ({wc.rate_pct_bw_per_week}% BW/week)",
-                    f"Safe: {'Yes' if wc.safe else 'AGGRESSIVE — consider slowing'}",
-                    "",
-                ]
-                for note in wc.lean_mass_preservation_notes:
-                    lines.append(f"  • {note}")
-                lines.append(f"\nEvidence: {wc.evidence}")
-                console.print(Panel("\n".join(lines), title="[cyan]Weight Change Plan[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                console.print("[dim]  Usage: /weightplan <current_kg> <target_kg> <body_fat_%> [goal: fat_loss/muscle_gain/contest_prep][/dim]")
+            handle_weightplan(self, query, q_lower)
 
         # ── Training Zones ────────────────────────────────────────────
 
