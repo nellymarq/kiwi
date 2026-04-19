@@ -97,10 +97,8 @@ from tools.injury_prevention import (
     match_prevention_protocol,
 )
 from tools.female_athlete import (
-    calculate_energy_availability as calc_ea_female, get_cycle_phase,
-    match_training_to_phase, screen_reds, postpartum_return_protocol,
-    calculate_iron_needs, format_ea_report, format_reds_report,
-    format_cycle_training, CYCLE_PHASES,
+    match_training_to_phase, screen_reds, format_reds_report,
+    format_cycle_training,
 )
 from memory.store import KiwiMemory
 from memory.profile import UserProfile
@@ -159,6 +157,12 @@ from handlers.environmental import (
     handle_cold,
     handle_heat,
     handle_jetlag,
+)
+from handlers.female import (
+    handle_cycle,
+    handle_iron,
+    handle_postpartum,
+    handle_reds,
 )
 
 # ── Console ───────────────────────────────────────────────────────────────────
@@ -3372,119 +3376,16 @@ class Kiwi:
         # ── Female Athlete Health ───────────────────────────────────
 
         elif q_lower.startswith("/cycle"):
-            parts = query[6:].strip().split()
-            if not parts:
-                lines = ["═══ Menstrual Cycle Phases ═══", ""]
-                for phase in CYCLE_PHASES:
-                    lines.append(f"  {phase.phase_name}  (days {phase.day_range[0]}-{phase.day_range[1]})")
-                output = "\n".join(lines)
-                console.print(Panel(output, title="[cyan]Cycle Phases[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                try:
-                    day = int(parts[0])
-                    sport = parts[1] if len(parts) > 1 else self.profile.data.get("sport", "general")
-                    match = match_training_to_phase(day, sport)
-                    phase = match["phase"]
-                    lines = [
-                        f"Day {day} — Phase: {phase.phase_name.replace('_', ' ').title()}",
-                        f"Days range: {phase.day_range[0]}-{phase.day_range[1]}",
-                        "",
-                        f"Focus: {match['recommended_focus']}",
-                        f"Intensity modifier: {match['intensity_modifier']}x",
-                        "",
-                        f"Hormonal: {phase.hormonal_profile}",
-                        "",
-                        f"Training: {phase.training_recommendations}",
-                        "",
-                        f"Nutrition: {phase.nutrition_notes}",
-                        "",
-                        f"Key nutrients: {', '.join(match['key_nutrients'])}",
-                        "",
-                        f"Injury risk: {match['injury_risk_notes']}",
-                    ]
-                    output = "\n".join(lines)
-                    console.print(Panel(output, title=f"[cyan]Cycle Training — Day {day}[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /cycle [day_1-28] [sport][/dim]")
+            handle_cycle(self, query, q_lower)
 
         elif q_lower.startswith("/reds"):
-            arg = query[5:].strip()
-            if not arg:
-                console.print("[dim]  Usage: /reds key=value [key=value ...][/dim]")
-                console.print("[dim]  Keys: bmi, menstrual_status, bone_stress_injuries, disordered_eating, weight_loss_pct, mood_disturbance, gi_issues, recurrent_illness, declining_performance, low_energy_availability[/dim]")
-            else:
-                responses: dict = {}
-                for token in arg.split():
-                    if "=" not in token:
-                        continue
-                    k, v = token.split("=", 1)
-                    vl = v.lower()
-                    if vl in ("true", "yes", "y", "1"):
-                        responses[k] = True
-                    elif vl in ("false", "no", "n", "0"):
-                        responses[k] = False
-                    else:
-                        try:
-                            responses[k] = float(v) if "." in v else int(v)
-                        except ValueError:
-                            responses[k] = v
-                result = screen_reds(responses)
-                output = format_reds_report(result)
-                console.print(Panel(output, title="[cyan]RED-S Screening[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                self._state["last_output"] = output
+            handle_reds(self, query, q_lower)
 
         elif q_lower.startswith("/iron"):
-            parts = query[5:].strip().split()
-            if len(parts) >= 2:
-                try:
-                    menstrual_status = parts[0]
-                    hours = float(parts[1])
-                    diet = parts[2] if len(parts) > 2 else "omnivore"
-                    result = calculate_iron_needs(menstrual_status, hours, diet)
-                    lines = [
-                        f"RDA: {result['rda_mg']} mg",
-                        f"Recommended: {result['recommended_mg']} mg/day",
-                        "",
-                        f"Rationale: {result['rationale']}",
-                        "",
-                        f"Monitoring: {result['monitoring']}",
-                    ]
-                    output = "\n".join(lines)
-                    console.print(Panel(output, title="[cyan]Iron Needs (Female Athlete)[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /iron <menstrual_status> <weekly_hours> [omnivore|vegetarian|vegan][/dim]")
-                    console.print("[dim]  menstrual_status: normal, heavy, amenorrheic[/dim]")
-            else:
-                console.print("[dim]  Usage: /iron <menstrual_status> <weekly_hours> [omnivore|vegetarian|vegan][/dim]")
+            handle_iron(self, query, q_lower)
 
         elif q_lower.startswith("/postpartum"):
-            parts = query[11:].strip().split()
-            if len(parts) >= 1:
-                try:
-                    weeks = int(parts[0])
-                    delivery = parts[1] if len(parts) > 1 else "vaginal"
-                    complications = parts[2].split(",") if len(parts) > 2 else []
-                    result = postpartum_return_protocol(weeks, delivery_type=delivery, complications=complications)
-                    lines = [
-                        f"Phase: {result.phase}",
-                        f"Weeks postpartum: {result.weeks_postpartum}",
-                        "",
-                        "Exercise Guidelines:",
-                    ]
-                    lines += [f"  • {g}" for g in result.exercise_guidelines]
-                    if result.contraindications:
-                        lines += ["", "Contraindications:"] + [f"  ⚠ {c}" for c in result.contraindications]
-                    if result.progression_criteria:
-                        lines += ["", "Progression Criteria:"] + [f"  • {c}" for c in result.progression_criteria]
-                    output = "\n".join(lines)
-                    console.print(Panel(output, title="[cyan]Postpartum Return-to-Sport[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /postpartum <weeks> [vaginal|c-section] [comma,sep,complications][/dim]")
-            else:
-                console.print("[dim]  Usage: /postpartum <weeks> [vaginal|c-section] [comma,sep,complications][/dim]")
+            handle_postpartum(self, query, q_lower)
 
         # ── Environmental Factors ───────────────────────────────────
 
