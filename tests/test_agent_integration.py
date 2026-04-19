@@ -178,3 +178,70 @@ def test_prevention_no_match_on_unrelated_finding():
             break
 
     assert matched is None
+
+
+# ── Tier 33: profile auto-fill for /risk_screen ──────────────────────────────
+
+def _merge_profile_into_reds(reds_responses, profile_data):
+    """Simulates Tier 33 /risk_screen merge: fills menstrual_status from profile
+    when notes didn't set it; counts bone_stress_injuries via 3-phrase scan.
+    Notes override profile."""
+    profile_ms = profile_data.get("menstrual_status")
+    if profile_ms and "menstrual_status" not in reds_responses:
+        reds_responses["menstrual_status"] = profile_ms
+    if "bone_stress_injuries" not in reds_responses:
+        injury_history = profile_data.get("injury_history") or []
+        bone_phrases = ("stress fracture", "bone stress", "stress reaction")
+        bone_count = sum(
+            1 for inj in injury_history
+            if any(phrase in str(inj).lower() for phrase in bone_phrases)
+        )
+        if bone_count > 0:
+            reds_responses["bone_stress_injuries"] = bone_count
+    return reds_responses
+
+
+def test_risk_screen_fills_menstrual_status_from_profile():
+    """Profile has menstrual_status; notes provide only bmi — profile fills the gap."""
+    reds_responses: dict = {"bmi": 17}
+    profile = {"sex": "female", "menstrual_status": "amenorrheic"}
+    merged = _merge_profile_into_reds(reds_responses, profile)
+    assert merged["menstrual_status"] == "amenorrheic"
+    assert merged["bmi"] == 17
+
+
+def test_risk_screen_notes_override_profile():
+    """Notes-provided menstrual_status takes precedence over profile."""
+    reds_responses: dict = {"menstrual_status": "amenorrheic", "bmi": 18}
+    profile = {"sex": "female", "menstrual_status": "normal"}
+    merged = _merge_profile_into_reds(reds_responses, profile)
+    # Notes value preserved, not overwritten
+    assert merged["menstrual_status"] == "amenorrheic"
+
+
+def test_risk_screen_counts_bone_stress_from_injury_history():
+    """3-phrase literal scan of injury_history → bone_stress_injuries count."""
+    reds_responses: dict = {}
+    profile = {
+        "sex": "female",
+        "injury_history": [
+            "stress fracture tibia 2022",
+            "shin splints 2023",
+            "bone stress reaction metatarsal 2024",
+        ],
+    }
+    merged = _merge_profile_into_reds(reds_responses, profile)
+    # Per-entry match (any() short-circuits): stress-fracture entry counts 1,
+    # shin-splints counts 0, bone-stress-reaction entry counts 1 → total 2
+    assert merged["bone_stress_injuries"] == 2
+
+
+def test_risk_screen_no_bone_stress_on_irrelevant_injuries():
+    """ACL/ankle/hamstring injuries should not count as bone stress."""
+    reds_responses: dict = {}
+    profile = {
+        "sex": "female",
+        "injury_history": ["ACL tear 2022", "hamstring strain 2023", "ankle sprain 2024"],
+    }
+    merged = _merge_profile_into_reds(reds_responses, profile)
+    assert "bone_stress_injuries" not in merged

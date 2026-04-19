@@ -1494,7 +1494,7 @@ class Kiwi:
             for tok in notes_raw.split():
                 if "=" in tok:
                     k, v = tok.split("=", 1)
-                    if k in reds_keys:
+                    if k in reds_keys and v.strip():
                         vl = v.lower()
                         if vl in ("true", "yes", "y", "1"):
                             reds_responses[k] = True
@@ -1529,13 +1529,27 @@ class Kiwi:
             # Autonomous RED-S enrichment: gate on sex=female, ≥2 keys, ≥1 clinical key
             reds_screening_text = ""
             clinical_keys = {"menstrual_status", "bmi", "bone_stress_injuries", "disordered_eating"}
-            if (
-                self.profile.data.get("sex") == "female"
-                and len(reds_responses) >= 2
-                and any(k in reds_responses for k in clinical_keys)
-            ):
-                reds_result = screen_reds(reds_responses)
-                reds_screening_text = format_reds_report(reds_result)
+            if self.profile.data.get("sex") == "female":
+                # Fill from profile where notes didn't specify (notes override profile)
+                profile_ms = self.profile.data.get("menstrual_status")
+                if profile_ms and "menstrual_status" not in reds_responses:
+                    reds_responses["menstrual_status"] = profile_ms
+                # Derive bone_stress_injuries from injury_history via 3-phrase literal scan
+                if "bone_stress_injuries" not in reds_responses:
+                    injury_history = self.profile.data.get("injury_history") or []
+                    bone_phrases = ("stress fracture", "bone stress", "stress reaction")
+                    bone_count = sum(
+                        1 for inj in injury_history
+                        if any(phrase in str(inj).lower() for phrase in bone_phrases)
+                    )
+                    if bone_count > 0:
+                        reds_responses["bone_stress_injuries"] = bone_count
+                if (
+                    len(reds_responses) >= 2
+                    and any(k in reds_responses for k in clinical_keys)
+                ):
+                    reds_result = screen_reds(reds_responses)
+                    reds_screening_text = format_reds_report(reds_result)
 
             console.print("[dim]  Running comprehensive risk screening...[/dim]\n")
             result = await self.risk_screen_agent.run({
@@ -1875,8 +1889,13 @@ class Kiwi:
                 ("dietary_restrictions", "Dietary restrictions (comma-separated, or blank)"),
                 ("current_supplements", "Current supplements (comma-separated, or blank)"),
                 ("health_conditions", "Health conditions (comma-separated, or blank)"),
+                ("injury_history", "Injury history (comma-separated past/current, or blank)"),
+                ("menstrual_status", "Menstrual status (normal / irregular / amenorrheic / heavy / postmenopausal / not_applicable)"),
             ]
             for field_key, prompt_text in fields_order:
+                # Skip menstrual_status if sex is not female
+                if field_key == "menstrual_status" and self.profile.get("sex") != "female":
+                    continue
                 current = self.profile.get(field_key)
                 current_str = f" [dim](current: {current})[/dim]" if current else ""
                 try:

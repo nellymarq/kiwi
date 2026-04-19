@@ -23,6 +23,10 @@ VALID_SEX = {"male", "female", "other"}
 VALID_ACTIVITY_LEVEL = {"sedentary", "light", "moderate", "active", "very_active"}
 VALID_TRAINING_STATUS = {"novice", "intermediate", "advanced", "elite"}
 VALID_PRIMARY_GOAL = {"performance", "body_composition", "health", "longevity", "rehabilitation"}
+VALID_MENSTRUAL_STATUS = {
+    "normal", "irregular", "amenorrheic", "heavy",
+    "postmenopausal", "not_applicable",
+}
 
 FIELD_RANGES = {
     "age": (10, 120),
@@ -51,6 +55,8 @@ class UserProfile:
         "known_deficiencies": list,
         "current_supplements": list,
         "health_conditions": list,
+        "menstrual_status": str,
+        "injury_history": list,
     }
 
     def __init__(self, client: str | None = None):
@@ -102,6 +108,11 @@ class UserProfile:
             return f"Invalid training_status: must be one of {', '.join(sorted(VALID_TRAINING_STATUS))}"
         if key == "primary_goal" and value not in VALID_PRIMARY_GOAL:
             return f"Invalid primary_goal: must be one of {', '.join(sorted(VALID_PRIMARY_GOAL))}"
+        if key == "menstrual_status":
+            normalized = str(value).lower().strip()
+            if normalized not in VALID_MENSTRUAL_STATUS:
+                return f"Invalid menstrual_status: must be one of {', '.join(sorted(VALID_MENSTRUAL_STATUS))}"
+            value = normalized
 
         # Range validation
         if key in FIELD_RANGES:
@@ -157,6 +168,11 @@ class UserProfile:
             lines.append(f"Current supplements: {', '.join(supplements)}")
         if conditions := self.data.get("health_conditions"):
             lines.append(f"Health conditions: {', '.join(conditions)}")
+        if ms := self.data.get("menstrual_status"):
+            if self.data.get("sex") == "female":
+                lines.append(f"Menstrual status: {ms}")
+        if ih := self.data.get("injury_history"):
+            lines.append(f"Injury history: {', '.join(ih)}")
 
         return "\n".join(lines)
 
