@@ -1,25 +1,10 @@
 """Tier 33 profile schema tests — menstrual_status + injury_history.
 
-Isolation pattern mirrors tests/test_progress.py: tmp_path + monkey-patch
-of memory.client_manager paths + ensure_setup + create_client.
+Isolation via the shared `clean_client` fixture in tests/conftest.py.
 """
 import pytest
 
-from memory import client_manager
 from memory.profile import UserProfile, VALID_MENSTRUAL_STATUS
-
-
-@pytest.fixture
-def clean_client(tmp_path, monkeypatch):
-    monkeypatch.setattr(client_manager, "KIWI_DIR", tmp_path)
-    monkeypatch.setattr(client_manager, "CLIENTS_DIR", tmp_path / "clients")
-    monkeypatch.setattr(client_manager, "ACTIVE_CLIENT_FILE", tmp_path / "active_client.txt")
-    monkeypatch.setattr(client_manager, "LEGACY_PROFILE", tmp_path / "profile.json")
-    monkeypatch.setattr(client_manager, "LEGACY_MEMORY", tmp_path / "memory.json")
-    monkeypatch.setattr(client_manager, "LEGACY_ARCHIVE", tmp_path / "episodic_archive.json")
-    client_manager.ensure_setup()
-    client_manager.create_client("test_athlete", "")
-    return "test_athlete"
 
 
 # ── menstrual_status ─────────────────────────────────────────────────────────

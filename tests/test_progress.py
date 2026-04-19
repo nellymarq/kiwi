@@ -1,23 +1,7 @@
 """Tests for progress tracking."""
 
-import json
-import pytest
-from pathlib import Path
 from memory import client_manager
-from memory.progress import ProgressTracker, KNOWN_METRICS
-
-
-@pytest.fixture
-def clean_client(tmp_path, monkeypatch):
-    monkeypatch.setattr(client_manager, "KIWI_DIR", tmp_path)
-    monkeypatch.setattr(client_manager, "CLIENTS_DIR", tmp_path / "clients")
-    monkeypatch.setattr(client_manager, "ACTIVE_CLIENT_FILE", tmp_path / "active_client.txt")
-    monkeypatch.setattr(client_manager, "LEGACY_PROFILE", tmp_path / "profile.json")
-    monkeypatch.setattr(client_manager, "LEGACY_MEMORY", tmp_path / "memory.json")
-    monkeypatch.setattr(client_manager, "LEGACY_ARCHIVE", tmp_path / "episodic_archive.json")
-    client_manager.ensure_setup()
-    client_manager.create_client("test_athlete", "")
-    return "test_athlete"
+from memory.progress import KNOWN_METRICS, ProgressTracker
 
 
 def test_record_and_get(clean_client):
