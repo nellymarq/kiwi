@@ -1735,7 +1735,19 @@ class Kiwi:
                 border_style="cyan", box=box.SIMPLE,
             ))
 
-        elif q_lower == "/brief":
+        elif q_lower == "/brief" or q_lower.startswith("/brief "):
+            # Parse cycle_day=N from args (first-match-wins, range 1-28)
+            arg_text = query[6:].strip() if len(query) > 6 else ""
+            cycle_day = None
+            for tok in arg_text.split():
+                if cycle_day is None and tok.startswith("cycle_day="):
+                    try:
+                        v = int(tok.split("=", 1)[1])
+                        if 1 <= v <= 28:
+                            cycle_day = v
+                    except ValueError:
+                        pass
+
             profile_summary = self.profile.to_summary()
 
             # Progress trends
@@ -1776,6 +1788,68 @@ class Kiwi:
                 schedule = generate_timing_schedule(supplements)
                 timing_text = format_timing_schedule(schedule)
 
+            # Autonomous enrichment 1: ACWR when ≥7 distinct days of load in last 14
+            training_load_text = ""
+            raw_loads = self.progress.get_history("training_load", limit=200)
+            if raw_loads:
+                raw_loads.sort(key=lambda e: e.get("ts", ""))
+                by_day: dict = {}
+                for e in raw_loads:
+                    day = str(e.get("ts", ""))[:10]
+                    if day:
+                        by_day[day] = by_day.get(day, 0.0) + float(e.get("value", 0.0))
+                from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+                today = _dt.now(_tz.utc).date()
+                recent_window_days = {
+                    (today - _td(days=i)).isoformat() for i in range(14)
+                }
+                recent_days_with_load = [d for d in by_day if d in recent_window_days]
+                if len(recent_days_with_load) >= 7:
+                    sorted_days = sorted(by_day.keys())
+                    last_28 = sorted_days[-28:]
+                    daily_loads = [by_day[d] for d in last_28]
+                    acwr_result = calculate_acwr(
+                        daily_loads, acute_window=7, chronic_window=28,
+                    )
+                    training_load_text = format_acwr_report(acwr_result)
+
+            # Autonomous enrichment 2: RED-S from profile (sex=female + ≥2 clinical keys)
+            reds_screening_text = ""
+            if self.profile.data.get("sex") == "female":
+                reds_responses: dict = {}
+                profile_ms = self.profile.data.get("menstrual_status")
+                if profile_ms and profile_ms != "not_applicable":
+                    reds_responses["menstrual_status"] = profile_ms
+                injury_history = self.profile.data.get("injury_history") or []
+                bone_phrases = ("stress fracture", "bone stress", "stress reaction")
+                bone_count = sum(
+                    1 for inj in injury_history
+                    if any(phrase in str(inj).lower() for phrase in bone_phrases)
+                )
+                if bone_count > 0:
+                    reds_responses["bone_stress_injuries"] = bone_count
+                clinical_keys = {"menstrual_status", "bmi", "bone_stress_injuries", "disordered_eating"}
+                if (
+                    len(reds_responses) >= 2
+                    and any(k in reds_responses for k in clinical_keys)
+                ):
+                    reds_result = screen_reds(reds_responses)
+                    reds_screening_text = format_reds_report(reds_result)
+
+            # Autonomous enrichment 3: cycle_phase when cycle_day arg provided + sex=female
+            cycle_phase_context_text = ""
+            if cycle_day is not None and self.profile.data.get("sex") == "female":
+                try:
+                    sport_ctx = self.profile.data.get("sport", "general")
+                    phase_info = match_training_to_phase(cycle_day, sport_ctx)
+                    phase_obj = phase_info["phase"]
+                    cycle_phase_context_text = (
+                        f"Menstrual cycle phase analysis (Kiwi tool, day {cycle_day}):\n"
+                        f"{format_cycle_training(phase_obj)}"
+                    )
+                except (ValueError, KeyError):
+                    cycle_phase_context_text = ""
+
             console.print("[dim]  Generating daily brief...[/dim]\n")
             brief_context = {
                 "profile_summary": profile_summary,
@@ -1784,6 +1858,9 @@ class Kiwi:
                 "risk_flags": retest_text if "OVERDUE" in retest_text or "DUE NOW" in retest_text else "",
                 "research_gaps": gaps_text,
                 "biomarker_due": retest_text if "No biomarkers" not in retest_text else "",
+                "training_load": training_load_text,
+                "reds_screening": reds_screening_text,
+                "cycle_phase_context": cycle_phase_context_text,
             }
             self._state["last_output"] = await self.daily_brief_agent.run(brief_context)
             console.print(self._state["last_output"])

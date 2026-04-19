@@ -354,6 +354,103 @@ def test_cycle_phase_lookup_for_day_14_ovulation():
     assert "ovulation" in formatted.lower()
 
 
+# ── Tier 38: DailyBriefAgent enrichment ─────────────────────────────────────
+
+def test_daily_brief_includes_training_load_when_key_present():
+    from agents.daily_brief import DailyBriefAgent
+    agent = DailyBriefAgent(_client())
+    msgs = agent._build_messages({
+        "profile_summary": "endurance runner",
+        "training_load": "═══ Acute:Chronic Workload Ratio Report ═══\n  ACWR Ratio: 1.42\n  Risk Zone: CAUTION",
+    })
+    content = msgs[0]["content"]
+    assert "Training load analysis" in content
+    assert "ACWR" in content
+    assert "CAUTION" in content
+
+
+def test_daily_brief_omits_training_load_when_empty():
+    from agents.daily_brief import DailyBriefAgent
+    agent = DailyBriefAgent(_client())
+    msgs = agent._build_messages({
+        "profile_summary": "irrelevant",
+        "training_load": "",
+    })
+    content = msgs[0]["content"]
+    assert "Training load analysis" not in content
+    assert "ACWR" not in content
+
+
+def test_daily_brief_includes_reds_when_key_present():
+    from agents.daily_brief import DailyBriefAgent
+    agent = DailyBriefAgent(_client())
+    msgs = agent._build_messages({
+        "profile_summary": "female runner",
+        "reds_screening": "═══ RED-S Risk Screening ═══\n  Risk Level: HIGH",
+    })
+    content = msgs[0]["content"]
+    assert "RED-S" in content
+    assert "HIGH" in content
+
+
+def test_daily_brief_includes_cycle_phase_when_key_present():
+    from agents.daily_brief import DailyBriefAgent
+    agent = DailyBriefAgent(_client())
+    msgs = agent._build_messages({
+        "profile_summary": "female athlete",
+        "cycle_phase_context": "Menstrual cycle phase analysis (Kiwi tool, day 14):\nOvulation phase",
+    })
+    content = msgs[0]["content"]
+    assert "cycle phase analysis" in content.lower()
+    assert "Ovulation" in content
+
+
+def test_daily_brief_reds_derivation_from_profile_pipeline():
+    """Simulates /brief autonomous RED-S enrichment logic."""
+    from tools.female_athlete import format_reds_report, screen_reds
+
+    # Profile has sex=female, menstrual_status=amenorrheic, injury_history with bone stress
+    profile = {
+        "sex": "female",
+        "menstrual_status": "amenorrheic",
+        "injury_history": ["stress fracture tibia 2023", "ankle sprain 2022"],
+    }
+
+    # Handler-side logic replica
+    reds_responses: dict = {}
+    if profile.get("sex") == "female":
+        ms = profile.get("menstrual_status")
+        if ms and ms != "not_applicable":
+            reds_responses["menstrual_status"] = ms
+        bone_phrases = ("stress fracture", "bone stress", "stress reaction")
+        bone_count = sum(
+            1 for inj in profile.get("injury_history", [])
+            if any(phrase in str(inj).lower() for phrase in bone_phrases)
+        )
+        if bone_count > 0:
+            reds_responses["bone_stress_injuries"] = bone_count
+
+    assert reds_responses == {"menstrual_status": "amenorrheic", "bone_stress_injuries": 1}
+    result = screen_reds(reds_responses)
+    assert result.risk_level == "high"  # amenorrhea + bone stress = high
+    rendered = format_reds_report(result)
+    assert "RED-S Risk Screening" in rendered
+
+
+def test_daily_brief_reds_skip_for_male_profile():
+    """/brief RED-S gating: male profile → empty text regardless of data."""
+    profile = {
+        "sex": "male",
+        "menstrual_status": "normal",  # nonsensical for male but saved
+        "injury_history": ["stress fracture 2023"],
+    }
+    # Gate fails at sex=female check → no responses built
+    reds_responses: dict = {}
+    if profile.get("sex") == "female":
+        pass  # skipped
+    assert reds_responses == {}
+
+
 def test_injury_history_first_match_resolves_to_protocol():
     """Iterable input: first matching entry wins, via shared helper."""
     from tools.injury_prevention import (

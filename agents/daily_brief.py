@@ -81,12 +81,21 @@ class DailyBriefAgent(BaseAgent):
         risk_flags = context.get("risk_flags", "")
         research_gaps = context.get("research_gaps", "")
         biomarker_due = context.get("biomarker_due", "")
+        training_load = context.get("training_load", "")
+        reds_screening = context.get("reds_screening", "")
+        cycle_phase_context = context.get("cycle_phase_context", "")
 
-        content = f"Generate today's daily brief.\n\n"
+        content = "Generate today's daily brief.\n\n"
         if profile:
             content += f"Athlete profile:\n{profile}\n\n"
         if progress:
             content += f"Recent progress data:\n{progress}\n\n"
+        if training_load:
+            content += f"Training load analysis (Kiwi ACWR tool):\n{training_load}\n\n"
+        if reds_screening:
+            content += f"RED-S structured screening (from Kiwi profile data):\n{reds_screening}\n\n"
+        if cycle_phase_context:
+            content += f"{cycle_phase_context}\n\n"
         if interventions:
             content += f"Active interventions:\n{interventions}\n\n"
         if risk_flags:
