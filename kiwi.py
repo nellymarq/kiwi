@@ -108,12 +108,6 @@ from tools.environmental import (
     format_altitude_protocol, format_heat_protocol, format_air_quality,
     format_cold_protocol, format_jet_lag,
 )
-from tools.mental_performance import (
-    assess_competition_anxiety, assess_mental_fatigue, assess_burnout,
-    get_visualization_protocol, generate_pre_competition_routine,
-    list_visualization_protocols, format_anxiety_report, format_burnout_report,
-    format_visualization, VISUALIZATION_DB,
-)
 from memory.store import KiwiMemory
 from memory.profile import UserProfile
 from memory import client_manager
@@ -159,6 +153,11 @@ from handlers.injury import (
     handle_overuse,
     handle_prevent,
     handle_return_to_sport,
+)
+from handlers.mental import (
+    handle_anxiety,
+    handle_burnout,
+    handle_visualize,
 )
 
 # ── Console ───────────────────────────────────────────────────────────────────
@@ -3568,61 +3567,13 @@ class Kiwi:
         # ── Mental Performance ──────────────────────────────────────
 
         elif q_lower.startswith("/anxiety"):
-            parts = query[8:].strip().split()
-            if len(parts) >= 3:
-                try:
-                    cog = float(parts[0])
-                    som = float(parts[1])
-                    conf = float(parts[2])
-                    result = assess_competition_anxiety(cog, som, conf)
-                    output = format_anxiety_report(result)
-                    console.print(Panel(output, title="[cyan]Competition Anxiety[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /anxiety <cognitive_1_4> <somatic_1_4> <confidence_1_4>[/dim]")
-            else:
-                console.print("[dim]  Usage: /anxiety <cognitive_1_4> <somatic_1_4> <confidence_1_4>[/dim]")
+            handle_anxiety(self, query, q_lower)
 
         elif q_lower.startswith("/burnout"):
-            arg = query[8:].strip()
-            if not arg or " recovery " not in f" {arg} ":
-                console.print("[dim]  Usage: /burnout stress k1=v1 k2=v2 ... recovery k3=v3 k4=v4 ...[/dim]")
-                console.print("[dim]  Stress keys: general_stress, emotional_stress, social_stress, training_stress, injury_concern (0-6)[/dim]")
-                console.print("[dim]  Recovery keys: sleep_quality, social_recovery, physical_recovery, general_wellbeing, self_efficacy (0-6)[/dim]")
-            else:
-                try:
-                    stress_part, recovery_part = arg.split(" recovery ", 1)
-                    stress_part = stress_part.replace("stress", "", 1).strip()
-                    stress_scores: dict = {}
-                    recovery_scores: dict = {}
-                    for token in stress_part.split():
-                        if "=" in token:
-                            k, v = token.split("=", 1)
-                            stress_scores[k] = float(v)
-                    for token in recovery_part.split():
-                        if "=" in token:
-                            k, v = token.split("=", 1)
-                            recovery_scores[k] = float(v)
-                    result = assess_burnout(stress_scores, recovery_scores)
-                    output = format_burnout_report(result)
-                    console.print(Panel(output, title="[cyan]Burnout Risk[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /burnout stress k1=v1 ... recovery k2=v2 ...[/dim]")
+            handle_burnout(self, query, q_lower)
 
         elif q_lower.startswith("/visualize"):
-            arg = query[10:].strip()
-            if not arg:
-                output = list_visualization_protocols()
-                console.print(Panel(output, title="[cyan]Visualization Protocols[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                proto = get_visualization_protocol(arg)
-                if proto:
-                    output = format_visualization(proto)
-                    console.print(Panel(output, title=f"[cyan]{proto.name}[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                else:
-                    console.print(f"[yellow]  No visualization for '{arg}'. Try /visualize with no args to list available.[/yellow]")
+            handle_visualize(self, query, q_lower)
 
         # ── Sports Intelligence Assessment ──────────────────────────
 
