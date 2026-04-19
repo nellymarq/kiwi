@@ -102,12 +102,6 @@ from tools.female_athlete import (
     calculate_iron_needs, format_ea_report, format_reds_report,
     format_cycle_training, CYCLE_PHASES,
 )
-from tools.environmental import (
-    altitude_training_protocol, heat_acclimatization_protocol,
-    air_quality_adjustment, cold_exposure_protocol, jet_lag_protocol,
-    format_altitude_protocol, format_heat_protocol, format_air_quality,
-    format_cold_protocol, format_jet_lag,
-)
 from memory.store import KiwiMemory
 from memory.profile import UserProfile
 from memory import client_manager
@@ -158,6 +152,13 @@ from handlers.mental import (
     handle_anxiety,
     handle_burnout,
     handle_visualize,
+)
+from handlers.environmental import (
+    handle_airquality,
+    handle_altitude,
+    handle_cold,
+    handle_heat,
+    handle_jetlag,
 )
 
 # ── Console ───────────────────────────────────────────────────────────────────
@@ -3488,81 +3489,19 @@ class Kiwi:
         # ── Environmental Factors ───────────────────────────────────
 
         elif q_lower.startswith("/altitude"):
-            parts = query[9:].strip().split()
-            if len(parts) >= 1:
-                try:
-                    target = int(parts[0])
-                    current = int(parts[1]) if len(parts) > 1 else 0
-                    weeks = int(parts[2]) if len(parts) > 2 else 3
-                    sport = parts[3] if len(parts) > 3 else self.profile.data.get("sport", "endurance")
-                    result = altitude_training_protocol(target, current, weeks, sport)
-                    output = format_altitude_protocol(result)
-                    console.print(Panel(output, title="[cyan]Altitude Training[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /altitude <target_m> [current_m] [weeks] [sport][/dim]")
-            else:
-                console.print("[dim]  Usage: /altitude <target_m> [current_m] [weeks] [sport][/dim]")
+            handle_altitude(self, query, q_lower)
 
         elif q_lower.startswith("/heat"):
-            parts = query[5:].strip().split()
-            if len(parts) >= 1:
-                try:
-                    wbgt = float(parts[0])
-                    acclim = parts[1].lower() in ("yes", "true", "y", "1") if len(parts) > 1 else False
-                    result = heat_acclimatization_protocol(wbgt, acclimatized=acclim)
-                    output = format_heat_protocol(result)
-                    console.print(Panel(output, title="[cyan]Heat Acclimatization[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /heat <wbgt_celsius> [acclimatized:yes/no][/dim]")
-            else:
-                console.print("[dim]  Usage: /heat <wbgt_celsius> [acclimatized:yes/no][/dim]")
+            handle_heat(self, query, q_lower)
 
         elif q_lower.startswith("/cold"):
-            parts = query[5:].strip().split()
-            if len(parts) >= 1:
-                try:
-                    temp = float(parts[0])
-                    wind = float(parts[1]) if len(parts) > 1 else 0.0
-                    precip = parts[2].lower() in ("yes", "true", "y", "1") if len(parts) > 2 else False
-                    result = cold_exposure_protocol(temp, wind_speed_kmh=wind, precipitation=precip)
-                    output = format_cold_protocol(result)
-                    console.print(Panel(output, title="[cyan]Cold Exposure[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /cold <temp_c> [wind_kmh] [precipitation:yes/no][/dim]")
-            else:
-                console.print("[dim]  Usage: /cold <temp_c> [wind_kmh] [precipitation:yes/no][/dim]")
+            handle_cold(self, query, q_lower)
 
         elif q_lower.startswith("/airquality"):
-            parts = query[11:].strip().split()
-            if len(parts) >= 1:
-                try:
-                    aqi = int(parts[0])
-                    result = air_quality_adjustment(aqi)
-                    output = format_air_quality(result)
-                    console.print(Panel(output, title="[cyan]Air Quality[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /airquality <aqi_0_500>[/dim]")
-            else:
-                console.print("[dim]  Usage: /airquality <aqi_0_500>[/dim]")
+            handle_airquality(self, query, q_lower)
 
         elif q_lower.startswith("/jetlag"):
-            parts = query[7:].strip().split()
-            if len(parts) >= 1:
-                try:
-                    zones = int(parts[0])
-                    direction = parts[1] if len(parts) > 1 else "east"
-                    result = jet_lag_protocol(zones, direction)
-                    output = format_jet_lag(result)
-                    console.print(Panel(output, title="[cyan]Jet Lag Protocol[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /jetlag <time_zones> [east|west][/dim]")
-            else:
-                console.print("[dim]  Usage: /jetlag <time_zones> [east|west][/dim]")
+            handle_jetlag(self, query, q_lower)
 
         # ── Mental Performance ──────────────────────────────────────
 
