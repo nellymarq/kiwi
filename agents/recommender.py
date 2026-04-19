@@ -109,6 +109,7 @@ class RecommenderAgent(BaseAgent):
         supplement_options = context.get("supplement_options", "")
         interaction_check = context.get("interaction_check", "")
         profile = context.get("profile_summary", "")
+        prevention_protocol = context.get("prevention_protocol", "")
 
         content = (
             f"Finding / goal: {finding}\n\n"
@@ -121,6 +122,12 @@ class RecommenderAgent(BaseAgent):
             content += f"Candidate supplements (from Kiwi supplement DB):\n{supplement_options}\n\n"
         if interaction_check:
             content += f"Interaction check vs current stack:\n{interaction_check}\n\n"
+        if prevention_protocol:
+            content += (
+                f"Relevant injury prevention protocol (from Kiwi's evidence-based protocol DB "
+                f"— treat as supplementary training/rehab context, not as supplement dosing):\n"
+                f"{prevention_protocol}\n\n"
+            )
 
         content += "Produce the integrated recommendation per the output format."
         return [{"role": "user", "content": content}]

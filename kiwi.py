@@ -95,7 +95,7 @@ from tools.injury_prevention import (
     calculate_acwr, check_ten_percent_rule, score_fms_movement,
     calculate_fms_composite, screen_overuse_risk, get_prevention_protocol,
     return_to_sport_decision, format_acwr_report, format_prevention_protocol,
-    list_prevention_protocols, PROTOCOL_DB,
+    list_prevention_protocols, PROTOCOL_ALIASES, PROTOCOL_DB,
 )
 from tools.female_athlete import (
     calculate_energy_availability as calc_ea_female, get_cycle_phase,
@@ -1480,8 +1480,34 @@ class Kiwi:
             console.print(result)
 
         elif q_lower == "/risk_screen" or q_lower.startswith("/risk_screen "):
-            notes = query[12:].strip() if len(query) > 12 else ""
+            notes_raw = query[12:].strip() if len(query) > 12 else ""
             profile_summary = self.profile.to_summary()
+
+            # Parse key=value tokens out of notes; keep non-kv tokens as free text
+            reds_keys = {
+                "menstrual_status", "bmi", "bone_stress_injuries", "disordered_eating",
+                "weight_loss_pct", "mood_disturbance", "gi_issues", "recurrent_illness",
+                "declining_performance", "low_energy_availability",
+            }
+            reds_responses: dict = {}
+            notes_tokens: list = []
+            for tok in notes_raw.split():
+                if "=" in tok:
+                    k, v = tok.split("=", 1)
+                    if k in reds_keys:
+                        vl = v.lower()
+                        if vl in ("true", "yes", "y", "1"):
+                            reds_responses[k] = True
+                        elif vl in ("false", "no", "n", "0"):
+                            reds_responses[k] = False
+                        else:
+                            try:
+                                reds_responses[k] = float(v) if "." in v else int(v)
+                            except ValueError:
+                                reds_responses[k] = v
+                        continue
+                notes_tokens.append(tok)
+            notes = " ".join(notes_tokens)
 
             # Gather biomarker data from progress tracker
             biomarker_lines = []
@@ -1500,6 +1526,17 @@ class Kiwi:
                     progress_lines.append(f"  {m} (last {len(vals)} readings): {' → '.join(f'{v:.1f}' for v in vals)}")
             progress_text = "\n".join(progress_lines) if progress_lines else "No progress trends available"
 
+            # Autonomous RED-S enrichment: gate on sex=female, ≥2 keys, ≥1 clinical key
+            reds_screening_text = ""
+            clinical_keys = {"menstrual_status", "bmi", "bone_stress_injuries", "disordered_eating"}
+            if (
+                self.profile.data.get("sex") == "female"
+                and len(reds_responses) >= 2
+                and any(k in reds_responses for k in clinical_keys)
+            ):
+                reds_result = screen_reds(reds_responses)
+                reds_screening_text = format_reds_report(reds_result)
+
             console.print("[dim]  Running comprehensive risk screening...[/dim]\n")
             result = await self.risk_screen_agent.run({
                 "profile_summary": profile_summary,
@@ -1507,6 +1544,7 @@ class Kiwi:
                 "progress_data": progress_text,
                 "training_load": "",
                 "notes": notes,
+                "reds_screening": reds_screening_text,
             })
             self._state["last_output"] = result
             console.print(result)
@@ -2122,6 +2160,33 @@ class Kiwi:
                 else:
                     interaction_text = "No current supplement stack on file."
 
+                # Autonomous injury-prevention enrichment: scan finding for protocol match
+                # Rule: substring match, word-boundary on ≥1 side, alias len ≥4, first-match-wins
+                prevention_text = ""
+                finding_lower = finding.lower()
+                candidates: list = []
+                for key in PROTOCOL_DB.keys():
+                    if len(key) >= 4:
+                        candidates.append((key, key))
+                for alias, target in PROTOCOL_ALIASES.items():
+                    if len(alias) >= 4:
+                        candidates.append((alias, target))
+                # Longest-first for greedy match
+                candidates.sort(key=lambda kv: -len(kv[0]))
+                for alias, target_key in candidates:
+                    idx = finding_lower.find(alias)
+                    if idx == -1:
+                        continue
+                    left_ok = idx == 0 or not finding_lower[idx - 1].isalnum()
+                    end = idx + len(alias)
+                    right_ok = end == len(finding_lower) or not finding_lower[end].isalnum()
+                    if left_ok or right_ok:
+                        proto = get_prevention_protocol(target_key)
+                        if proto:
+                            sport = self.profile.data.get("sport", "general")
+                            prevention_text = format_prevention_protocol(proto, sport)
+                        break
+
                 # Invoke recommender agent
                 console.print("[dim]  Synthesizing integrated recommendation...[/dim]\n")
                 result = await self.recommender_agent.run({
@@ -2130,6 +2195,7 @@ class Kiwi:
                     "biomarker_interpretation": "",
                     "supplement_options": supp_options,
                     "interaction_check": interaction_text,
+                    "prevention_protocol": prevention_text,
                 })
                 self._state["last_output"] = result
                 console.print(result)

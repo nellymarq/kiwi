@@ -134,8 +134,9 @@ class RiskScreenAgent(BaseAgent):
         progress = context.get("progress_data", "")
         training_load = context.get("training_load", "")
         notes = context.get("notes", "")
+        reds_screening = context.get("reds_screening", "")
 
-        content = f"Conduct a comprehensive athlete risk screening.\n\n"
+        content = "Conduct a comprehensive athlete risk screening.\n\n"
         if profile:
             content += f"Athlete profile:\n{profile}\n\n"
         if biomarkers:
@@ -144,6 +145,8 @@ class RiskScreenAgent(BaseAgent):
             content += f"Progress trends:\n{progress}\n\n"
         if training_load:
             content += f"Training load data:\n{training_load}\n\n"
+        if reds_screening:
+            content += f"RED-S structured screening (from Kiwi's IOC-criteria tool):\n{reds_screening}\n\n"
         if notes:
             content += f"Additional notes:\n{notes}\n\n"
         content += "Screen all 6 domains and produce the risk assessment."
