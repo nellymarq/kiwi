@@ -29,6 +29,21 @@ def test_record_and_get(clean_client):
     assert history[0]["unit"] == "kg"
 
 
+def test_training_load_in_known_metrics(clean_client):
+    """Tier 34: training_load registered with AU units."""
+    assert KNOWN_METRICS["training_load"] == "AU"
+
+
+def test_record_training_load(clean_client):
+    """Standard record() works for training_load with auto-unit."""
+    pt = ProgressTracker(client=clean_client)
+    pt.record("training_load", 450.0)
+    latest = pt.get_latest("training_load")
+    assert latest is not None
+    assert latest["value"] == 450.0
+    assert latest["unit"] == "AU"
+
+
 def test_record_with_note(clean_client):
     pt = ProgressTracker(client=clean_client)
     pt.record("ferritin", 45.0, note="post-supplementation retest")

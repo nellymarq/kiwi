@@ -1526,6 +1526,32 @@ class Kiwi:
                     progress_lines.append(f"  {m} (last {len(vals)} readings): {' → '.join(f'{v:.1f}' for v in vals)}")
             progress_text = "\n".join(progress_lines) if progress_lines else "No progress trends available"
 
+            # Autonomous ACWR enrichment: require ≥7 distinct UTC calendar days
+            # of training_load in the last 14 days. Aggregate multiple loads/day.
+            training_load_text = ""
+            raw_loads = self.progress.get_history("training_load", limit=200)
+            if raw_loads:
+                raw_loads.sort(key=lambda e: e.get("ts", ""))
+                by_day: dict = {}
+                for e in raw_loads:
+                    day = str(e.get("ts", ""))[:10]
+                    if day:
+                        by_day[day] = by_day.get(day, 0.0) + float(e.get("value", 0.0))
+                from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+                today = _dt.now(_tz.utc).date()
+                recent_window_days = {
+                    (today - _td(days=i)).isoformat() for i in range(14)
+                }
+                recent_days_with_load = [d for d in by_day if d in recent_window_days]
+                if len(recent_days_with_load) >= 7:
+                    sorted_days = sorted(by_day.keys())
+                    last_28 = sorted_days[-28:]
+                    daily_loads = [by_day[d] for d in last_28]
+                    acwr_result = calculate_acwr(
+                        daily_loads, acute_window=7, chronic_window=28,
+                    )
+                    training_load_text = format_acwr_report(acwr_result)
+
             # Autonomous RED-S enrichment: gate on sex=female, ≥2 keys, ≥1 clinical key
             reds_screening_text = ""
             clinical_keys = {"menstrual_status", "bmi", "bone_stress_injuries", "disordered_eating"}
@@ -1556,7 +1582,7 @@ class Kiwi:
                 "profile_summary": profile_summary,
                 "biomarker_data": biomarker_text,
                 "progress_data": progress_text,
-                "training_load": "",
+                "training_load": training_load_text,
                 "notes": notes,
                 "reds_screening": reds_screening_text,
             })

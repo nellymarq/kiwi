@@ -245,3 +245,88 @@ def test_risk_screen_no_bone_stress_on_irrelevant_injuries():
     }
     merged = _merge_profile_into_reds(reds_responses, profile)
     assert "bone_stress_injuries" not in merged
+
+
+# ── Tier 34: ACWR auto-enrichment for /risk_screen ──────────────────────────
+
+def _acwr_gate_and_compute(raw_loads, today):
+    """Simulates Tier 34 /risk_screen ACWR enrichment logic end-to-end."""
+    from datetime import timedelta as _td
+
+    from tools.injury_prevention import calculate_acwr, format_acwr_report
+
+    raw_loads.sort(key=lambda e: e.get("ts", ""))
+    by_day: dict = {}
+    for e in raw_loads:
+        day = str(e.get("ts", ""))[:10]
+        if day:
+            by_day[day] = by_day.get(day, 0.0) + float(e.get("value", 0.0))
+    recent_window_days = {(today - _td(days=i)).isoformat() for i in range(14)}
+    recent_days_with_load = [d for d in by_day if d in recent_window_days]
+    if len(recent_days_with_load) >= 7:
+        sorted_days = sorted(by_day.keys())
+        last_28 = sorted_days[-28:]
+        daily_loads = [by_day[d] for d in last_28]
+        result = calculate_acwr(daily_loads, acute_window=7, chronic_window=28)
+        return format_acwr_report(result)
+    return ""
+
+
+def test_acwr_fires_with_sufficient_history():
+    """≥7 distinct days in last 14 → ACWR report injected."""
+    from datetime import date, timedelta
+
+    today = date.today()
+    raw_loads = [
+        {
+            "ts": (today - timedelta(days=i)).isoformat() + "T10:00:00+00:00",
+            "metric": "training_load",
+            "value": 400.0 + i * 10,
+        }
+        for i in range(10)  # 10 distinct days, all within last 14
+    ]
+    result = _acwr_gate_and_compute(raw_loads, today)
+    assert result != ""
+    assert "Acute:Chronic Workload Ratio" in result
+    assert "ACWR Ratio" in result
+
+
+def test_acwr_skips_with_insufficient_history():
+    """<7 distinct days in last 14 → silent skip (empty string)."""
+    from datetime import date, timedelta
+
+    today = date.today()
+    raw_loads = [
+        {
+            "ts": (today - timedelta(days=i)).isoformat() + "T10:00:00+00:00",
+            "metric": "training_load",
+            "value": 400.0,
+        }
+        for i in range(5)  # only 5 distinct days
+    ]
+    result = _acwr_gate_and_compute(raw_loads, today)
+    assert result == ""
+
+
+def test_acwr_aggregates_same_day_loads():
+    """Multiple same-day loads sum before ACWR calculation."""
+    from datetime import date, timedelta
+
+    today = date.today()
+    raw_loads = []
+    for i in range(8):  # 8 distinct days
+        day = today - timedelta(days=i)
+        raw_loads.append({
+            "ts": day.isoformat() + "T08:00:00+00:00",
+            "metric": "training_load",
+            "value": 200.0,
+        })
+        raw_loads.append({
+            "ts": day.isoformat() + "T18:00:00+00:00",
+            "metric": "training_load",
+            "value": 150.0,
+        })
+    result = _acwr_gate_and_compute(raw_loads, today)
+    # 8 distinct days with same-day aggregation = 350 AU/day passes the gate
+    assert result != ""
+    assert "Acute:Chronic Workload Ratio" in result

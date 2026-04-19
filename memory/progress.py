@@ -47,6 +47,7 @@ KNOWN_METRICS: dict[str, str] = {
     "bench_1rm": "kg",
     "deadlift_1rm": "kg",
     "sleep_hours": "hrs",
+    "training_load": "AU",
 }
 
 
