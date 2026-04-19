@@ -92,11 +92,9 @@ from tools.training_zones import (
     format_intensity_distribution,
 )
 from tools.injury_prevention import (
-    calculate_acwr, check_ten_percent_rule, score_fms_movement,
-    calculate_fms_composite, screen_overuse_risk, get_prevention_protocol,
-    match_prevention_protocol, return_to_sport_decision, format_acwr_report,
-    format_prevention_protocol, list_prevention_protocols,
-    PROTOCOL_ALIASES, PROTOCOL_DB,
+    calculate_acwr, format_acwr_report,
+    get_prevention_protocol, format_prevention_protocol,
+    match_prevention_protocol,
 )
 from tools.female_athlete import (
     calculate_energy_availability as calc_ea_female, get_cycle_phase,
@@ -154,6 +152,14 @@ from tools.timing_schedule import generate_timing_schedule, check_separation_con
 from tools.client_export import export_client
 from tools.oura import OuraClient
 from tools.wearable_import import import_file as import_wearable_file, format_import_result
+
+from handlers.injury import (
+    handle_acwr,
+    handle_fms,
+    handle_overuse,
+    handle_prevent,
+    handle_return_to_sport,
+)
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -327,6 +333,7 @@ class Kiwi:
     """
 
     def __init__(self, use_pubmed: bool = True):
+        self.console = console  # handlers/ modules access via kiwi.console
         self.client = anthropic.AsyncAnthropic()
         self.orchestrator = KiwiOrchestrator(self.client)
         client_manager.ensure_setup()
@@ -3348,165 +3355,19 @@ class Kiwi:
         # ── Injury Prevention ───────────────────────────────────────
 
         elif q_lower.startswith("/acwr"):
-            parts = query[5:].strip().split()
-            if len(parts) >= 2:
-                # Manual-args mode (Tier 30 original behavior)
-                try:
-                    loads = [float(p) for p in parts]
-                    result = calculate_acwr(loads)
-                    output = format_acwr_report(result)
-                    console.print(Panel(output, title="[cyan]Acute:Chronic Workload Ratio[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /acwr <load1> <load2> ... OR /acwr alone (reads tracked history)[/dim]")
-            else:
-                # No-args mode (Tier 39): read from progress history
-                raw_loads = self.progress.get_history("training_load", limit=200)
-                if raw_loads:
-                    raw_loads.sort(key=lambda e: e.get("ts", ""))
-                    by_day: dict = {}
-                    for e in raw_loads:
-                        day = str(e.get("ts", ""))[:10]
-                        if day:
-                            by_day[day] = by_day.get(day, 0.0) + float(e.get("value", 0.0))
-                    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
-                    today = _dt.now(_tz.utc).date()
-                    recent_window_days = {
-                        (today - _td(days=i)).isoformat() for i in range(14)
-                    }
-                    recent_days_with_load = [d for d in by_day if d in recent_window_days]
-                    if len(recent_days_with_load) >= 7:
-                        sorted_days = sorted(by_day.keys())
-                        last_28 = sorted_days[-28:]
-                        daily_loads = [by_day[d] for d in last_28]
-                        result = calculate_acwr(
-                            daily_loads, acute_window=7, chronic_window=28,
-                        )
-                        output = format_acwr_report(result)
-                        console.print(Panel(
-                            output,
-                            title=f"[cyan]Acute:Chronic Workload Ratio[/cyan]  [dim](from {len(recent_days_with_load)} tracked days)[/dim]",
-                            border_style="cyan",
-                            box=box.ROUNDED,
-                            padding=(0, 2),
-                        ))
-                        self._state["last_output"] = output
-                    else:
-                        console.print(
-                            f"[dim]  Only {len(recent_days_with_load)} distinct day(s) of training_load in last 14 (need ≥7).[/dim]\n"
-                            "[dim]  Usage: /acwr <load1> <load2> ... OR /track training_load <value> to build history.[/dim]"
-                        )
-                else:
-                    console.print(
-                        "[dim]  No training_load history tracked.[/dim]\n"
-                        "[dim]  Usage: /acwr <load1> <load2> ... OR /track training_load <value> to build history.[/dim]"
-                    )
+            handle_acwr(self, query, q_lower)
 
         elif q_lower.startswith("/fms"):
-            parts = query[4:].strip().split()
-            if len(parts) >= 2 and len(parts) % 2 == 0:
-                try:
-                    scores = {parts[i]: int(parts[i + 1]) for i in range(0, len(parts), 2)}
-                    if len(scores) == 1:
-                        movement, score = next(iter(scores.items()))
-                        fms = score_fms_movement(movement, score)
-                        lines = [
-                            f"Movement: {fms.movement}",
-                            f"Score: {fms.score}/3",
-                        ]
-                        if fms.compensations:
-                            lines += ["", "Compensations:"] + [f"  • {c}" for c in fms.compensations]
-                        if fms.corrective_exercises:
-                            lines += ["", "Correctives:"] + [f"  • {c}" for c in fms.corrective_exercises]
-                        output = "\n".join(lines)
-                        console.print(Panel(output, title=f"[cyan]FMS — {movement}[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    else:
-                        composite = calculate_fms_composite(scores)
-                        lines = [
-                            f"Composite Score: {composite['composite_score']}/21",
-                            f"Risk Level: {composite['risk_level'].upper()}",
-                        ]
-                        if composite["priority_movements"]:
-                            lines.append(f"Priority: {', '.join(composite['priority_movements'])}")
-                        if composite["asymmetries"]:
-                            lines.append(f"Asymmetries: {', '.join(composite['asymmetries'])}")
-                        output = "\n".join(lines)
-                        console.print(Panel(output, title="[cyan]FMS Composite[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except (ValueError, KeyError):
-                    console.print("[dim]  Usage: /fms <movement> <score> [<movement> <score> ...]  (scores 0-3)[/dim]")
-            else:
-                console.print("[dim]  Usage: /fms <movement> <score> [<movement> <score> ...]  (scores 0-3)[/dim]")
-                console.print(f"[dim]  Movements: {', '.join(sorted(PROTOCOL_DB.keys())[:3])}..., etc. (see /prevent)[/dim]")
+            handle_fms(self, query, q_lower)
 
         elif q_lower.startswith("/overuse"):
-            parts = query[8:].strip().split()
-            if len(parts) >= 3:
-                try:
-                    sport = parts[0]
-                    age = int(parts[1])
-                    hours = float(parts[2])
-                    spec_age = int(parts[3]) if len(parts) > 3 else None
-                    result = screen_overuse_risk(sport, age, hours, specialization_age=spec_age)
-                    lines = [
-                        f"Sport: {result.sport}  Age: {result.age}",
-                        f"Training: {result.training_history}",
-                        f"Risk Level: {result.risk_level.upper()}",
-                    ]
-                    if result.risk_factors:
-                        lines += ["", "Risk Factors:"] + [f"  ⚠ {f}" for f in result.risk_factors]
-                    if result.recommendations:
-                        lines += ["", "Recommendations:"] + [f"  • {r}" for r in result.recommendations]
-                    lines += ["", f"Evidence: {result.evidence}"]
-                    output = "\n".join(lines)
-                    console.print(Panel(output, title="[cyan]Overuse Risk Screening[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /overuse <sport> <age> <weekly_hours> [specialization_age][/dim]")
-            else:
-                console.print("[dim]  Usage: /overuse <sport> <age> <weekly_hours> [specialization_age][/dim]")
+            handle_overuse(self, query, q_lower)
 
         elif q_lower.startswith("/return"):
-            parts = query[7:].strip().split()
-            if len(parts) >= 4:
-                try:
-                    injury = parts[0]
-                    weeks = int(parts[1])
-                    pain = int(parts[2])
-                    deficit = float(parts[3])
-                    result = return_to_sport_decision(injury, weeks, pain, deficit)
-                    lines = [
-                        f"Injury: {injury}  Weeks since: {weeks}",
-                        f"Phase: {result['phase']}",
-                        f"Cleared: {'YES' if result['cleared'] else 'NO'}",
-                        f"Timeline: {result['timeline_estimate']}",
-                    ]
-                    if result["criteria_met"]:
-                        lines += ["", "Criteria Met:"] + [f"  ✓ {c}" for c in result["criteria_met"]]
-                    if result["criteria_remaining"]:
-                        lines += ["", "Remaining:"] + [f"  • {c}" for c in result["criteria_remaining"]]
-                    output = "\n".join(lines)
-                    console.print(Panel(output, title="[cyan]Return-to-Sport Decision[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                except ValueError:
-                    console.print("[dim]  Usage: /return <injury> <weeks_since> <pain_0_10> <strength_deficit_%>[/dim]")
-            else:
-                console.print("[dim]  Usage: /return <injury> <weeks_since> <pain_0_10> <strength_deficit_%>[/dim]")
+            handle_return_to_sport(self, query, q_lower)
 
         elif q_lower.startswith("/prevent"):
-            arg = query[8:].strip()
-            if not arg:
-                output = list_prevention_protocols()
-                console.print(Panel(output, title="[cyan]Prevention Protocols[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                proto = get_prevention_protocol(arg)
-                if proto:
-                    sport = self.profile.data.get("sport", "general")
-                    output = format_prevention_protocol(proto, sport)
-                    console.print(Panel(output, title=f"[cyan]{proto.name}[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-                    self._state["last_output"] = output
-                else:
-                    console.print(f"[yellow]  No protocol for '{arg}'. Try /prevent with no args to list available.[/yellow]")
+            handle_prevent(self, query, q_lower)
 
         # ── Female Athlete Health ───────────────────────────────────
 
