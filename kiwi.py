@@ -3341,6 +3341,7 @@ class Kiwi:
         elif q_lower.startswith("/acwr"):
             parts = query[5:].strip().split()
             if len(parts) >= 2:
+                # Manual-args mode (Tier 30 original behavior)
                 try:
                     loads = [float(p) for p in parts]
                     result = calculate_acwr(loads)
@@ -3348,9 +3349,49 @@ class Kiwi:
                     console.print(Panel(output, title="[cyan]Acute:Chronic Workload Ratio[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
                     self._state["last_output"] = output
                 except ValueError:
-                    console.print("[dim]  Usage: /acwr <load1> <load2> ... (daily training loads, ≥2 days)[/dim]")
+                    console.print("[dim]  Usage: /acwr <load1> <load2> ... OR /acwr alone (reads tracked history)[/dim]")
             else:
-                console.print("[dim]  Usage: /acwr <load1> <load2> ... (daily training loads, ≥2 days)[/dim]")
+                # No-args mode (Tier 39): read from progress history
+                raw_loads = self.progress.get_history("training_load", limit=200)
+                if raw_loads:
+                    raw_loads.sort(key=lambda e: e.get("ts", ""))
+                    by_day: dict = {}
+                    for e in raw_loads:
+                        day = str(e.get("ts", ""))[:10]
+                        if day:
+                            by_day[day] = by_day.get(day, 0.0) + float(e.get("value", 0.0))
+                    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+                    today = _dt.now(_tz.utc).date()
+                    recent_window_days = {
+                        (today - _td(days=i)).isoformat() for i in range(14)
+                    }
+                    recent_days_with_load = [d for d in by_day if d in recent_window_days]
+                    if len(recent_days_with_load) >= 7:
+                        sorted_days = sorted(by_day.keys())
+                        last_28 = sorted_days[-28:]
+                        daily_loads = [by_day[d] for d in last_28]
+                        result = calculate_acwr(
+                            daily_loads, acute_window=7, chronic_window=28,
+                        )
+                        output = format_acwr_report(result)
+                        console.print(Panel(
+                            output,
+                            title=f"[cyan]Acute:Chronic Workload Ratio[/cyan]  [dim](from {len(recent_days_with_load)} tracked days)[/dim]",
+                            border_style="cyan",
+                            box=box.ROUNDED,
+                            padding=(0, 2),
+                        ))
+                        self._state["last_output"] = output
+                    else:
+                        console.print(
+                            f"[dim]  Only {len(recent_days_with_load)} distinct day(s) of training_load in last 14 (need ≥7).[/dim]\n"
+                            "[dim]  Usage: /acwr <load1> <load2> ... OR /track training_load <value> to build history.[/dim]"
+                        )
+                else:
+                    console.print(
+                        "[dim]  No training_load history tracked.[/dim]\n"
+                        "[dim]  Usage: /acwr <load1> <load2> ... OR /track training_load <value> to build history.[/dim]"
+                    )
 
         elif q_lower.startswith("/fms"):
             parts = query[4:].strip().split()
