@@ -94,8 +94,9 @@ from tools.training_zones import (
 from tools.injury_prevention import (
     calculate_acwr, check_ten_percent_rule, score_fms_movement,
     calculate_fms_composite, screen_overuse_risk, get_prevention_protocol,
-    return_to_sport_decision, format_acwr_report, format_prevention_protocol,
-    list_prevention_protocols, PROTOCOL_ALIASES, PROTOCOL_DB,
+    match_prevention_protocol, return_to_sport_decision, format_acwr_report,
+    format_prevention_protocol, list_prevention_protocols,
+    PROTOCOL_ALIASES, PROTOCOL_DB,
 )
 from tools.female_athlete import (
     calculate_energy_availability as calc_ea_female, get_cycle_phase,
@@ -1300,42 +1301,19 @@ class Kiwi:
                 except (ValueError, KeyError):
                     cycle_phase_context = ""
 
-            # Autonomous enrichment 3: injury-history first-match prevention protocol
+            # Autonomous enrichment 3: injury-history first-match prevention via shared helper
             injury_prevention_context = ""
             injury_history = self.profile.data.get("injury_history") or []
-            if injury_history:
-                candidates: list = []
-                for key in PROTOCOL_DB.keys():
-                    if len(key) >= 4:
-                        candidates.append((key, key))
-                for alias, target in PROTOCOL_ALIASES.items():
-                    if len(alias) >= 4:
-                        candidates.append((alias, target))
-                candidates.sort(key=lambda kv: -len(kv[0]))
-                matched_key = None
-                for entry in injury_history:
-                    entry_lower = str(entry).lower()
-                    for alias, target in candidates:
-                        idx = entry_lower.find(alias)
-                        if idx == -1:
-                            continue
-                        left_ok = idx == 0 or not entry_lower[idx - 1].isalnum()
-                        end = idx + len(alias)
-                        right_ok = end == len(entry_lower) or not entry_lower[end].isalnum()
-                        if left_ok or right_ok:
-                            matched_key = target
-                            break
-                    if matched_key:
-                        break
-                if matched_key:
-                    proto = get_prevention_protocol(matched_key)
-                    if proto:
-                        proto_text = format_prevention_protocol(proto, sport)
-                        injury_prevention_context = (
-                            f"Prior injury context from profile (consider emphasizing "
-                            f"relevant prevention patterns during taper/peak-week — this "
-                            f"is supplementary, not a primary rehab directive):\n{proto_text}"
-                        )
+            matched_key = match_prevention_protocol(injury_history)
+            if matched_key:
+                proto = get_prevention_protocol(matched_key)
+                if proto:
+                    proto_text = format_prevention_protocol(proto, sport)
+                    injury_prevention_context = (
+                        f"Prior injury context from profile (consider emphasizing "
+                        f"relevant prevention patterns during taper/peak-week — this "
+                        f"is supplementary, not a primary rehab directive):\n{proto_text}"
+                    )
 
             console.print(f"[dim]  Generating competition preparation protocol for {sport}...[/dim]\n")
             result = await self.competition_prep_agent.run({
@@ -2284,32 +2262,14 @@ class Kiwi:
                 else:
                     interaction_text = "No current supplement stack on file."
 
-                # Autonomous injury-prevention enrichment: scan finding for protocol match
-                # Rule: substring match, word-boundary on ≥1 side, alias len ≥4, first-match-wins
+                # Autonomous injury-prevention enrichment via shared helper
                 prevention_text = ""
-                finding_lower = finding.lower()
-                candidates: list = []
-                for key in PROTOCOL_DB.keys():
-                    if len(key) >= 4:
-                        candidates.append((key, key))
-                for alias, target in PROTOCOL_ALIASES.items():
-                    if len(alias) >= 4:
-                        candidates.append((alias, target))
-                # Longest-first for greedy match
-                candidates.sort(key=lambda kv: -len(kv[0]))
-                for alias, target_key in candidates:
-                    idx = finding_lower.find(alias)
-                    if idx == -1:
-                        continue
-                    left_ok = idx == 0 or not finding_lower[idx - 1].isalnum()
-                    end = idx + len(alias)
-                    right_ok = end == len(finding_lower) or not finding_lower[end].isalnum()
-                    if left_ok or right_ok:
-                        proto = get_prevention_protocol(target_key)
-                        if proto:
-                            sport = self.profile.data.get("sport", "general")
-                            prevention_text = format_prevention_protocol(proto, sport)
-                        break
+                matched_key = match_prevention_protocol(finding)
+                if matched_key:
+                    proto = get_prevention_protocol(matched_key)
+                    if proto:
+                        sport = self.profile.data.get("sport", "general")
+                        prevention_text = format_prevention_protocol(proto, sport)
 
                 # Invoke recommender agent
                 console.print("[dim]  Synthesizing integrated recommendation...[/dim]\n")

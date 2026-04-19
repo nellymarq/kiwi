@@ -18,6 +18,7 @@ References:
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 
@@ -767,6 +768,54 @@ def screen_overuse_risk(
         recommendations=recommendations,
         evidence="🟡 Moderate — Jayanthi N et al. (2013) Sports Health; Myer GD et al. (2011) Sports Health",
     )
+
+
+def match_prevention_protocol(
+    text_or_entries: str | Iterable[str],
+    min_alias_length: int = 4,
+) -> str | None:
+    """Find the first prevention-protocol key matching text via substring rules.
+
+    Rules:
+      - Word-boundary on at least one side (start/end or non-alphanumeric neighbor)
+      - Alias length ≥ min_alias_length (filters out short noisy tokens like "acl")
+      - Longest alias wins on ties (greedy match)
+      - First match wins across entries (if list input)
+      - Case-insensitive
+
+    Args:
+        text_or_entries: A single string or iterable of strings (e.g. injury_history).
+        min_alias_length: Minimum length for aliases/keys to be considered.
+
+    Returns:
+        The matched protocol key (e.g. "acl"), or None.
+    """
+    if isinstance(text_or_entries, str):
+        entries = [text_or_entries]
+    else:
+        entries = list(text_or_entries)
+
+    candidates: list = []
+    for key in PROTOCOL_DB.keys():
+        if len(key) >= min_alias_length:
+            candidates.append((key, key))
+    for alias, target in PROTOCOL_ALIASES.items():
+        if len(alias) >= min_alias_length:
+            candidates.append((alias, target))
+    candidates.sort(key=lambda kv: -len(kv[0]))
+
+    for entry in entries:
+        entry_lower = str(entry).lower()
+        for alias, target in candidates:
+            idx = entry_lower.find(alias)
+            if idx == -1:
+                continue
+            left_ok = idx == 0 or not entry_lower[idx - 1].isalnum()
+            end = idx + len(alias)
+            right_ok = end == len(entry_lower) or not entry_lower[end].isalnum()
+            if left_ok or right_ok:
+                return target
+    return None
 
 
 def get_prevention_protocol(injury_type: str) -> PreventionProtocol | None:

@@ -301,3 +301,45 @@ class TestFormatting:
         output = list_prevention_protocols()
         assert "ACL" in output or "acl" in output.lower()
         assert "hamstring" in output.lower()
+
+
+# ── Tier 36: match_prevention_protocol helper ──────────────────────────────
+
+class TestMatchPreventionProtocol:
+    def test_empty_list_returns_none(self):
+        from tools.injury_prevention import match_prevention_protocol
+        assert match_prevention_protocol([]) is None
+
+    def test_empty_string_returns_none(self):
+        from tools.injury_prevention import match_prevention_protocol
+        assert match_prevention_protocol("") is None
+
+    def test_no_alias_in_text_returns_none(self):
+        from tools.injury_prevention import match_prevention_protocol
+        assert match_prevention_protocol("random unrelated text about nutrition") is None
+
+    def test_single_string_returns_key(self):
+        from tools.injury_prevention import match_prevention_protocol
+        assert match_prevention_protocol("hamstring strain during sprints") == "hamstring"
+
+    def test_list_first_entry_match_wins(self):
+        from tools.injury_prevention import match_prevention_protocol
+        entries = ["ACL tear 2023", "groin strain 2022"]
+        assert match_prevention_protocol(entries) == "acl"
+
+    def test_respects_min_alias_length_bare_key_rejected(self):
+        """Bare 'acl' (len 3) is below default min_alias_length=4, so the bare
+        DB key is skipped. Only aliases of len ≥ 4 like 'acl tear' can match."""
+        from tools.injury_prevention import match_prevention_protocol
+        assert match_prevention_protocol("acl") is None
+        assert match_prevention_protocol("acl tear diagnosed today") == "acl"
+
+    def test_word_boundary_prevents_midword_match(self):
+        """Alias fully surrounded by alphanumerics on both sides should not match."""
+        from tools.injury_prevention import match_prevention_protocol
+        assert match_prevention_protocol("transhamstringreally continues on") is None
+
+    def test_none_entry_does_not_crash(self):
+        """str(None) = 'None', matches nothing; next valid entry wins."""
+        from tools.injury_prevention import match_prevention_protocol
+        assert match_prevention_protocol([None, "ACL tear"]) == "acl"

@@ -116,34 +116,14 @@ def test_reds_parse_and_screen_pipeline():
 
 
 def test_prevention_keyword_match_pipeline():
-    """Simulates the /recommend keyword-match logic for a real finding."""
+    """/recommend keyword-match via shared helper."""
     from tools.injury_prevention import (
-        PROTOCOL_ALIASES, PROTOCOL_DB, get_prevention_protocol,
         format_prevention_protocol,
+        get_prevention_protocol,
+        match_prevention_protocol,
     )
 
-    finding_lower = "ACL tear rehab for a soccer midfielder".lower()
-    candidates: list = []
-    for key in PROTOCOL_DB.keys():
-        if len(key) >= 4:
-            candidates.append((key, key))
-    for alias, target in PROTOCOL_ALIASES.items():
-        if len(alias) >= 4:
-            candidates.append((alias, target))
-    candidates.sort(key=lambda kv: -len(kv[0]))
-
-    matched = None
-    for alias, target_key in candidates:
-        idx = finding_lower.find(alias)
-        if idx == -1:
-            continue
-        left_ok = idx == 0 or not finding_lower[idx - 1].isalnum()
-        end = idx + len(alias)
-        right_ok = end == len(finding_lower) or not finding_lower[end].isalnum()
-        if left_ok or right_ok:
-            matched = target_key
-            break
-
+    matched = match_prevention_protocol("ACL tear rehab for a soccer midfielder")
     assert matched == "acl"
     proto = get_prevention_protocol(matched)
     assert proto is not None
@@ -152,32 +132,10 @@ def test_prevention_keyword_match_pipeline():
 
 
 def test_prevention_no_match_on_unrelated_finding():
-    """A biomarker finding should not trigger prevention-protocol injection."""
-    from tools.injury_prevention import PROTOCOL_ALIASES, PROTOCOL_DB
+    """Biomarker finding triggers no protocol injection."""
+    from tools.injury_prevention import match_prevention_protocol
 
-    finding_lower = "ferritin 15 ng/ml female endurance athlete".lower()
-    candidates: list = []
-    for key in PROTOCOL_DB.keys():
-        if len(key) >= 4:
-            candidates.append((key, key))
-    for alias, target in PROTOCOL_ALIASES.items():
-        if len(alias) >= 4:
-            candidates.append((alias, target))
-    candidates.sort(key=lambda kv: -len(kv[0]))
-
-    matched = None
-    for alias, target_key in candidates:
-        idx = finding_lower.find(alias)
-        if idx == -1:
-            continue
-        left_ok = idx == 0 or not finding_lower[idx - 1].isalnum()
-        end = idx + len(alias)
-        right_ok = end == len(finding_lower) or not finding_lower[end].isalnum()
-        if left_ok or right_ok:
-            matched = target_key
-            break
-
-    assert matched is None
+    assert match_prevention_protocol("ferritin 15 ng/ml female endurance athlete") is None
 
 
 # ── Tier 33: profile auto-fill for /risk_screen ──────────────────────────────
@@ -397,43 +355,17 @@ def test_cycle_phase_lookup_for_day_14_ovulation():
 
 
 def test_injury_history_first_match_resolves_to_protocol():
-    """First entry in injury_history that matches an alias wins."""
+    """Iterable input: first matching entry wins, via shared helper."""
     from tools.injury_prevention import (
-        PROTOCOL_ALIASES,
-        PROTOCOL_DB,
         format_prevention_protocol,
         get_prevention_protocol,
+        match_prevention_protocol,
     )
 
     injury_history = ["ACL tear 2023", "ankle sprain 2022", "hamstring 2024"]
-
-    candidates: list = []
-    for key in PROTOCOL_DB.keys():
-        if len(key) >= 4:
-            candidates.append((key, key))
-    for alias, target in PROTOCOL_ALIASES.items():
-        if len(alias) >= 4:
-            candidates.append((alias, target))
-    candidates.sort(key=lambda kv: -len(kv[0]))
-
-    matched_key = None
-    for entry in injury_history:
-        entry_lower = str(entry).lower()
-        for alias, target in candidates:
-            idx = entry_lower.find(alias)
-            if idx == -1:
-                continue
-            left_ok = idx == 0 or not entry_lower[idx - 1].isalnum()
-            end = idx + len(alias)
-            right_ok = end == len(entry_lower) or not entry_lower[end].isalnum()
-            if left_ok or right_ok:
-                matched_key = target
-                break
-        if matched_key:
-            break
-
-    assert matched_key == "acl"
-    proto = get_prevention_protocol(matched_key)
+    matched = match_prevention_protocol(injury_history)
+    assert matched == "acl"
+    proto = get_prevention_protocol(matched)
     assert proto is not None
     formatted = format_prevention_protocol(proto, "soccer")
     assert "FIFA 11+" in formatted
