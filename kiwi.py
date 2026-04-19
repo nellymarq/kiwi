@@ -84,13 +84,6 @@ from tools.body_composition import (
     calculate_ffmi, calculate_energy_availability, safe_weight_change_rate,
     format_composition_report, SPORT_BF_TARGETS,
 )
-from tools.training_zones import (
-    estimate_vo2max_cooper, estimate_vo2max_hr_based, predict_hr_max,
-    calculate_hr_zones_karvonen, calculate_power_zones,
-    calculate_pace_zones, recommend_intensity_distribution,
-    format_hr_zones, format_power_zones, format_pace_zones,
-    format_intensity_distribution,
-)
 from tools.injury_prevention import (
     calculate_acwr, format_acwr_report,
     get_prevention_protocol, format_prevention_protocol,
@@ -163,6 +156,14 @@ from handlers.female import (
     handle_iron,
     handle_postpartum,
     handle_reds,
+)
+from handlers.training_zones import (
+    handle_distribution,
+    handle_hrmax,
+    handle_hrzones,
+    handle_pacezones,
+    handle_powerzones,
+    handle_vo2max,
 )
 
 # ── Console ───────────────────────────────────────────────────────────────────
@@ -3293,68 +3294,22 @@ class Kiwi:
         # ── Training Zones ────────────────────────────────────────────
 
         elif q_lower.startswith("/hrzones "):
-            parts = query[9:].strip().split()
-            if len(parts) >= 2:
-                hr_rest, hr_max = int(parts[0]), int(parts[1])
-                zones = calculate_hr_zones_karvonen(hr_rest, hr_max)
-                output = format_hr_zones(zones)
-                console.print(Panel(output, title=f"[cyan]HR Zones[/cyan]  [dim]HRrest={hr_rest} HRmax={hr_max}[/dim]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                console.print("[dim]  Usage: /hrzones <resting_hr> <max_hr>[/dim]")
+            handle_hrzones(self, query, q_lower)
 
         elif q_lower.startswith("/powerzones "):
-            parts = query[12:].strip().split()
-            if len(parts) >= 1:
-                ftp = int(parts[0])
-                zones = calculate_power_zones(ftp)
-                output = format_power_zones(zones)
-                console.print(Panel(output, title=f"[cyan]Power Zones[/cyan]  [dim]FTP={ftp}W[/dim]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                console.print("[dim]  Usage: /powerzones <ftp_watts>[/dim]")
+            handle_powerzones(self, query, q_lower)
 
         elif q_lower.startswith("/pacezones "):
-            parts = query[11:].strip().split()
-            if len(parts) >= 1:
-                vdot = float(parts[0])
-                zones = calculate_pace_zones(vdot)
-                output = format_pace_zones(zones)
-                console.print(Panel(output, title=f"[cyan]Pace Zones[/cyan]  [dim]VDOT={vdot}[/dim]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                console.print("[dim]  Usage: /pacezones <vdot>[/dim]")
+            handle_pacezones(self, query, q_lower)
 
         elif q_lower.startswith("/vo2max "):
-            parts = query[8:].strip().split()
-            if len(parts) >= 1:
-                dist = float(parts[0])
-                result = estimate_vo2max_cooper(dist)
-                lines = [
-                    f"VO2max: {result.vo2max:.1f} mL/kg/min",
-                    f"Category: {result.fitness_category.title()}",
-                    f"Method: {result.method}",
-                    f"Evidence: {result.evidence}",
-                ]
-                console.print(Panel("\n".join(lines), title=f"[cyan]VO2max Estimate[/cyan]  [dim]{dist:.0f}m in 12 min[/dim]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                console.print("[dim]  Usage: /vo2max <distance_meters_in_12min>[/dim]")
+            handle_vo2max(self, query, q_lower)
 
         elif q_lower.startswith("/hrmax "):
-            parts = query[7:].strip().split()
-            if len(parts) >= 1:
-                age = int(parts[0])
-                method = parts[1] if len(parts) > 1 else "tanaka"
-                hr = predict_hr_max(age, method)
-                console.print(Panel(f"Predicted HRmax: {hr} bpm  (method: {method}, age: {age})", title="[cyan]HRmax Prediction[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                console.print("[dim]  Usage: /hrmax <age> [method: tanaka/fox/gulati][/dim]")
+            handle_hrmax(self, query, q_lower)
 
         elif q_lower.startswith("/distribution"):
-            parts = query[13:].strip().split()
-            sport = parts[0] if len(parts) > 0 else self.profile.data.get("sport", "endurance")
-            level = parts[1] if len(parts) > 1 else "intermediate"
-            phase = parts[2] if len(parts) > 2 else "base"
-            dist = recommend_intensity_distribution(sport, level, phase)
-            output = format_intensity_distribution(dist)
-            console.print(Panel(output, title=f"[cyan]Intensity Distribution[/cyan]  [dim]{sport}/{level}/{phase}[/dim]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+            handle_distribution(self, query, q_lower)
 
         # ── Injury Prevention ───────────────────────────────────────
 
