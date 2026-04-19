@@ -107,3 +107,109 @@ def test_fields_contains_new_schema(clean_client):
     assert "injury_history" in p.FIELDS
     assert p.FIELDS["menstrual_status"] is str
     assert p.FIELDS["injury_history"] is list
+
+
+# ── Tier 40: cycle_day persistence + extrapolation ───────────────────────────
+
+def test_cycle_day_field_registered(clean_client):
+    p = UserProfile(client=clean_client)
+    assert "cycle_day" in p.FIELDS
+    assert p.FIELDS["cycle_day"] is int
+
+
+def test_cycle_day_range_validation(clean_client):
+    p = UserProfile(client=clean_client)
+    # Valid
+    assert p.set("cycle_day", 14) is True
+    # Too low
+    result = p.set("cycle_day", 0)
+    assert isinstance(result, str)
+    # Too high
+    result = p.set("cycle_day", 29)
+    assert isinstance(result, str)
+
+
+def test_cycle_day_auto_stamps_date(clean_client):
+    from datetime import datetime, timezone
+    p = UserProfile(client=clean_client)
+    p.set("cycle_day", 7)
+    assert p.get("cycle_day_set_at") == datetime.now(timezone.utc).date().isoformat()
+
+
+def test_get_current_cycle_day_same_day(clean_client):
+    """Set today, retrieve today → same value."""
+    p = UserProfile(client=clean_client)
+    p.set("cycle_day", 14)
+    assert p.get_current_cycle_day() == 14
+
+
+def test_get_current_cycle_day_with_elapsed_days(clean_client):
+    """Manually set an old anchor date; extrapolation adds days with modulo 28."""
+    from datetime import date, timedelta
+    p = UserProfile(client=clean_client)
+    p.data["cycle_day"] = 14
+    # Pretend it was set 10 days ago
+    past = (date.today() - timedelta(days=10)).isoformat()
+    p.data["cycle_day_set_at"] = past
+    # Day 14 + 10 = day 24
+    assert p.get_current_cycle_day() == 24
+
+
+def test_get_current_cycle_day_wraps_past_28(clean_client):
+    """Extrapolation wraps at 28 via modulo."""
+    from datetime import date, timedelta
+    p = UserProfile(client=clean_client)
+    p.data["cycle_day"] = 20
+    # 10 days after day 20 → (20 + 10 - 1) % 28 + 1 = 30 % 28 + 1 = 3
+    past = (date.today() - timedelta(days=10)).isoformat()
+    p.data["cycle_day_set_at"] = past
+    assert p.get_current_cycle_day() == 2  # 20+10=30, (30-1)%28+1 = 29%28+1 = 1+1 = 2
+
+
+def test_get_current_cycle_day_full_cycle(clean_client):
+    """Day N + 28 days = day N again."""
+    from datetime import date, timedelta
+    p = UserProfile(client=clean_client)
+    p.data["cycle_day"] = 7
+    past = (date.today() - timedelta(days=28)).isoformat()
+    p.data["cycle_day_set_at"] = past
+    assert p.get_current_cycle_day() == 7
+
+
+def test_get_current_cycle_day_returns_none_when_unset(clean_client):
+    p = UserProfile(client=clean_client)
+    assert p.get_current_cycle_day() is None
+
+
+def test_get_current_cycle_day_returns_none_on_malformed_date(clean_client):
+    p = UserProfile(client=clean_client)
+    p.data["cycle_day"] = 14
+    p.data["cycle_day_set_at"] = "not-a-date"
+    assert p.get_current_cycle_day() is None
+
+
+def test_get_current_cycle_day_clock_skew_negative_elapsed(clean_client):
+    """If anchor date is in the future (clock skew), return raw anchor."""
+    from datetime import date, timedelta
+    p = UserProfile(client=clean_client)
+    p.data["cycle_day"] = 14
+    # Future date — should return raw anchor, not negative math
+    future = (date.today() + timedelta(days=5)).isoformat()
+    p.data["cycle_day_set_at"] = future
+    assert p.get_current_cycle_day() == 14
+
+
+def test_to_summary_includes_extrapolated_cycle_day_for_female(clean_client):
+    p = UserProfile(client=clean_client)
+    p.set("sex", "female")
+    p.set("cycle_day", 10)
+    summary = p.to_summary()
+    assert "Cycle day (today, extrapolated): 10" in summary
+
+
+def test_to_summary_skips_cycle_day_for_male(clean_client):
+    p = UserProfile(client=clean_client)
+    p.set("sex", "male")
+    p.set("cycle_day", 10)  # permissive set, but hidden in summary
+    summary = p.to_summary()
+    assert "Cycle day" not in summary

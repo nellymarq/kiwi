@@ -9,8 +9,9 @@ Profile is injected into every research query to allow Kiwi to:
 """
 
 import json
+from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Literal, Any
+from typing import Any, Literal
 
 from . import client_manager
 
@@ -33,7 +34,10 @@ FIELD_RANGES = {
     "weight_kg": (20.0, 300.0),
     "height_cm": (100.0, 250.0),
     "body_fat_pct": (2.0, 60.0),
+    "cycle_day": (1, 28),
 }
+
+CYCLE_LENGTH_DAYS = 28  # matches CYCLE_PHASES in tools/female_athlete.py
 
 
 class UserProfile:
@@ -57,6 +61,7 @@ class UserProfile:
         "health_conditions": list,
         "menstrual_status": str,
         "injury_history": list,
+        "cycle_day": int,
     }
 
     def __init__(self, client: str | None = None):
@@ -121,6 +126,9 @@ class UserProfile:
                 return f"Invalid {key}: must be between {lo} and {hi}"
 
         self.data[key] = value
+        # Auto-stamp the record date when cycle_day is set, for extrapolation
+        if key == "cycle_day":
+            self.data["cycle_day_set_at"] = datetime.now(timezone.utc).date().isoformat()
         self.save()
         return True
 
@@ -171,6 +179,10 @@ class UserProfile:
         if ms := self.data.get("menstrual_status"):
             if self.data.get("sex") == "female":
                 lines.append(f"Menstrual status: {ms}")
+        if self.data.get("sex") == "female":
+            current_day = self.get_current_cycle_day()
+            if current_day is not None:
+                lines.append(f"Cycle day (today, extrapolated): {current_day}")
         if ih := self.data.get("injury_history"):
             lines.append(f"Injury history: {', '.join(ih)}")
 
@@ -178,3 +190,25 @@ class UserProfile:
 
     def to_dict(self) -> dict:
         return dict(self.data)
+
+    def get_current_cycle_day(self) -> int | None:
+        """Extrapolate today's cycle day from the stored anchor.
+
+        Returns None if cycle_day hasn't been set, or if the stored
+        anchor/timestamp is malformed. Uses a hardcoded 28-day cycle.
+        Clock-skew protection: if days_elapsed is negative, returns
+        the raw anchor.
+        """
+        anchor = self.data.get("cycle_day")
+        anchor_date_str = self.data.get("cycle_day_set_at")
+        if anchor is None or not anchor_date_str:
+            return None
+        try:
+            anchor_date = date.fromisoformat(str(anchor_date_str))
+            today = datetime.now(timezone.utc).date()
+            days_elapsed = (today - anchor_date).days
+            if days_elapsed < 0:
+                return int(anchor)
+            return ((int(anchor) - 1 + days_elapsed) % CYCLE_LENGTH_DAYS) + 1
+        except (ValueError, TypeError):
+            return None

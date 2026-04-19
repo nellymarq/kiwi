@@ -1273,6 +1273,10 @@ class Kiwi:
                 notes_tokens.append(tok)
             notes = " ".join(notes_tokens)
 
+            # Fall back to profile extrapolation when notes didn't specify
+            if cycle_day is None:
+                cycle_day = self.profile.get_current_cycle_day()
+
             sport = self.profile.get("sport") or "combat sports"
             current_weight = self.profile.get("weight_kg") or ""
             supplements_list = self.profile.get("current_supplements") or []
@@ -1748,6 +1752,10 @@ class Kiwi:
                     except ValueError:
                         pass
 
+            # Fall back to profile extrapolation when arg didn't specify
+            if cycle_day is None:
+                cycle_day = self.profile.get_current_cycle_day()
+
             profile_summary = self.profile.to_summary()
 
             # Progress trends
@@ -2051,10 +2059,11 @@ class Kiwi:
                 ("health_conditions", "Health conditions (comma-separated, or blank)"),
                 ("injury_history", "Injury history (comma-separated past/current, or blank)"),
                 ("menstrual_status", "Menstrual status (normal / irregular / amenorrheic / heavy / postmenopausal / not_applicable)"),
+                ("cycle_day", "Current cycle day 1-28 (blank to skip; auto-extrapolates going forward)"),
             ]
             for field_key, prompt_text in fields_order:
-                # Skip menstrual_status if sex is not female
-                if field_key == "menstrual_status" and self.profile.get("sex") != "female":
+                # Skip menstrual_status and cycle_day if sex is not female
+                if field_key in ("menstrual_status", "cycle_day") and self.profile.get("sex") != "female":
                     continue
                 current = self.profile.get(field_key)
                 current_str = f" [dim](current: {current})[/dim]" if current else ""
