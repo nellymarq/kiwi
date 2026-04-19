@@ -152,6 +152,9 @@ class CompetitionPrepAgent(BaseAgent):
         target_weight = context.get("target_weight", "")
         current_supplements = context.get("current_supplements", "")
         notes = context.get("notes", "")
+        menstrual_context = context.get("menstrual_context", "")
+        cycle_phase_context = context.get("cycle_phase_context", "")
+        injury_prevention_context = context.get("injury_prevention_context", "")
 
         content = (
             f"Generate a competition preparation protocol.\n\n"
@@ -167,6 +170,12 @@ class CompetitionPrepAgent(BaseAgent):
         content += f"\nAthlete profile:\n{profile}\n\n"
         if current_supplements:
             content += f"Current supplement stack:\n{current_supplements}\n\n"
+        if menstrual_context:
+            content += f"{menstrual_context}\n\n"
+        if cycle_phase_context:
+            content += f"{cycle_phase_context}\n\n"
+        if injury_prevention_context:
+            content += f"{injury_prevention_context}\n\n"
         if notes:
             content += f"Additional notes:\n{notes}\n\n"
         content += "Produce the complete competition preparation protocol."

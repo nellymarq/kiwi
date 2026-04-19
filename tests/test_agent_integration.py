@@ -330,3 +330,110 @@ def test_acwr_aggregates_same_day_loads():
     # 8 distinct days with same-day aggregation = 350 AU/day passes the gate
     assert result != ""
     assert "Acute:Chronic Workload Ratio" in result
+
+
+# ── Tier 35: CompetitionPrepAgent enrichment ────────────────────────────────
+
+def test_competition_prep_includes_menstrual_context_when_key_present():
+    from agents.competition_prep import CompetitionPrepAgent
+    agent = CompetitionPrepAgent(_client())
+    msgs = agent._build_messages({
+        "sport": "boxing",
+        "event": "competition",
+        "menstrual_context": "Athlete menstrual status (from Kiwi profile): amenorrheic",
+    })
+    content = msgs[0]["content"]
+    assert "menstrual status" in content.lower()
+    assert "amenorrheic" in content
+
+
+def test_competition_prep_omits_menstrual_context_when_empty():
+    from agents.competition_prep import CompetitionPrepAgent
+    agent = CompetitionPrepAgent(_client())
+    msgs = agent._build_messages({
+        "sport": "boxing",
+        "event": "competition",
+        "menstrual_context": "",
+    })
+    content = msgs[0]["content"]
+    assert "menstrual" not in content.lower()
+
+
+def test_competition_prep_includes_injury_prevention_when_key_present():
+    from agents.competition_prep import CompetitionPrepAgent
+    agent = CompetitionPrepAgent(_client())
+    msgs = agent._build_messages({
+        "sport": "soccer",
+        "event": "race",
+        "injury_prevention_context": "Prior injury context: FIFA 11+ Neuromuscular Warm-Up",
+    })
+    content = msgs[0]["content"]
+    assert "FIFA 11+" in content
+    assert "Prior injury" in content
+
+
+def test_competition_prep_omits_injury_prevention_when_empty():
+    from agents.competition_prep import CompetitionPrepAgent
+    agent = CompetitionPrepAgent(_client())
+    msgs = agent._build_messages({
+        "sport": "soccer",
+        "event": "race",
+        "injury_prevention_context": "",
+    })
+    content = msgs[0]["content"]
+    assert "Prior injury" not in content
+    assert "FIFA" not in content
+
+
+def test_cycle_phase_lookup_for_day_14_ovulation():
+    """Day 14 maps to ovulation phase with injury-risk notes."""
+    from tools.female_athlete import format_cycle_training, match_training_to_phase
+
+    result = match_training_to_phase(14, "basketball")
+    phase = result["phase"]
+    assert phase.phase_name == "ovulation"
+    formatted = format_cycle_training(phase)
+    assert "ovulation" in formatted.lower()
+
+
+def test_injury_history_first_match_resolves_to_protocol():
+    """First entry in injury_history that matches an alias wins."""
+    from tools.injury_prevention import (
+        PROTOCOL_ALIASES,
+        PROTOCOL_DB,
+        format_prevention_protocol,
+        get_prevention_protocol,
+    )
+
+    injury_history = ["ACL tear 2023", "ankle sprain 2022", "hamstring 2024"]
+
+    candidates: list = []
+    for key in PROTOCOL_DB.keys():
+        if len(key) >= 4:
+            candidates.append((key, key))
+    for alias, target in PROTOCOL_ALIASES.items():
+        if len(alias) >= 4:
+            candidates.append((alias, target))
+    candidates.sort(key=lambda kv: -len(kv[0]))
+
+    matched_key = None
+    for entry in injury_history:
+        entry_lower = str(entry).lower()
+        for alias, target in candidates:
+            idx = entry_lower.find(alias)
+            if idx == -1:
+                continue
+            left_ok = idx == 0 or not entry_lower[idx - 1].isalnum()
+            end = idx + len(alias)
+            right_ok = end == len(entry_lower) or not entry_lower[end].isalnum()
+            if left_ok or right_ok:
+                matched_key = target
+                break
+        if matched_key:
+            break
+
+    assert matched_key == "acl"
+    proto = get_prevention_protocol(matched_key)
+    assert proto is not None
+    formatted = format_prevention_protocol(proto, "soccer")
+    assert "FIFA 11+" in formatted

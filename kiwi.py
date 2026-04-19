@@ -1253,13 +1253,89 @@ class Kiwi:
             console.print(result)
 
         elif q_lower.startswith("/fight_prep") or q_lower.startswith("/race_prep"):
-            notes = ""
+            notes_raw = ""
             if " " in query:
-                notes = query.split(maxsplit=1)[1].strip()
+                notes_raw = query.split(maxsplit=1)[1].strip()
+
+            # Parse cycle_day=N out of notes (first-match-wins, range 1-28)
+            cycle_day = None
+            notes_tokens: list = []
+            for tok in notes_raw.split():
+                if cycle_day is None and tok.startswith("cycle_day="):
+                    try:
+                        v = int(tok.split("=", 1)[1])
+                        if 1 <= v <= 28:
+                            cycle_day = v
+                            continue
+                    except ValueError:
+                        pass
+                notes_tokens.append(tok)
+            notes = " ".join(notes_tokens)
+
             sport = self.profile.get("sport") or "combat sports"
             current_weight = self.profile.get("weight_kg") or ""
             supplements_list = self.profile.get("current_supplements") or []
             supplements_text = ", ".join(supplements_list) if supplements_list else "none listed"
+
+            # Autonomous enrichment 1: menstrual_status context line
+            menstrual_context = ""
+            if self.profile.data.get("sex") == "female":
+                ms = self.profile.data.get("menstrual_status")
+                if ms in {"normal", "irregular", "amenorrheic", "heavy", "postmenopausal"}:
+                    menstrual_context = (
+                        f"Athlete menstrual status (from Kiwi profile — treat as context "
+                        f"for nutrient timing and injury-risk considerations):\n{ms}"
+                    )
+
+            # Autonomous enrichment 2: cycle-phase analysis (needs cycle_day + sex=female)
+            cycle_phase_context = ""
+            if cycle_day is not None and self.profile.data.get("sex") == "female":
+                try:
+                    phase_info = match_training_to_phase(cycle_day, sport)
+                    phase_obj = phase_info["phase"]
+                    cycle_phase_context = (
+                        f"Menstrual cycle phase analysis (Kiwi tool, day {cycle_day}):\n"
+                        f"{format_cycle_training(phase_obj)}"
+                    )
+                except (ValueError, KeyError):
+                    cycle_phase_context = ""
+
+            # Autonomous enrichment 3: injury-history first-match prevention protocol
+            injury_prevention_context = ""
+            injury_history = self.profile.data.get("injury_history") or []
+            if injury_history:
+                candidates: list = []
+                for key in PROTOCOL_DB.keys():
+                    if len(key) >= 4:
+                        candidates.append((key, key))
+                for alias, target in PROTOCOL_ALIASES.items():
+                    if len(alias) >= 4:
+                        candidates.append((alias, target))
+                candidates.sort(key=lambda kv: -len(kv[0]))
+                matched_key = None
+                for entry in injury_history:
+                    entry_lower = str(entry).lower()
+                    for alias, target in candidates:
+                        idx = entry_lower.find(alias)
+                        if idx == -1:
+                            continue
+                        left_ok = idx == 0 or not entry_lower[idx - 1].isalnum()
+                        end = idx + len(alias)
+                        right_ok = end == len(entry_lower) or not entry_lower[end].isalnum()
+                        if left_ok or right_ok:
+                            matched_key = target
+                            break
+                    if matched_key:
+                        break
+                if matched_key:
+                    proto = get_prevention_protocol(matched_key)
+                    if proto:
+                        proto_text = format_prevention_protocol(proto, sport)
+                        injury_prevention_context = (
+                            f"Prior injury context from profile (consider emphasizing "
+                            f"relevant prevention patterns during taper/peak-week — this "
+                            f"is supplementary, not a primary rehab directive):\n{proto_text}"
+                        )
 
             console.print(f"[dim]  Generating competition preparation protocol for {sport}...[/dim]\n")
             result = await self.competition_prep_agent.run({
@@ -1270,6 +1346,9 @@ class Kiwi:
                 "target_weight": "",
                 "current_supplements": supplements_text,
                 "notes": notes,
+                "menstrual_context": menstrual_context,
+                "cycle_phase_context": cycle_phase_context,
+                "injury_prevention_context": injury_prevention_context,
             })
             self._state["last_output"] = result
             console.print(result)
