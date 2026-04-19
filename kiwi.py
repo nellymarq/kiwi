@@ -107,7 +107,7 @@ from tools.environmental import (
     altitude_training_protocol, heat_acclimatization_protocol,
     air_quality_adjustment, cold_exposure_protocol, jet_lag_protocol,
     format_altitude_protocol, format_heat_protocol, format_air_quality,
-    format_jet_lag,
+    format_cold_protocol, format_jet_lag,
 )
 from tools.mental_performance import (
     assess_competition_anxiety, assess_mental_fatigue, assess_burnout,
@@ -679,7 +679,7 @@ class Kiwi:
         """
         Dispatch a single command. Returns True if the REPL should exit.
 
-        All 116 command handlers live here, organized by section headers.
+        All 133 command handlers live here, organized by section headers.
         State is accessed via self._state dict.
         """
         q_lower = query.lower()
@@ -2327,7 +2327,7 @@ class Kiwi:
             grams = float(args[-1]) if args and args[-1].lstrip("-").replace(".", "", 1).isdigit() else 100.0
             if grams <= 0:
                 console.print("[dim red]  Serving size must be positive.[/dim red]")
-                continue
+                return False
 
             if food_name:
                 with console.status(
@@ -2383,7 +2383,7 @@ class Kiwi:
                     rpe = float(parts[3])
                     if duration <= 0 or not (1 <= rpe <= 10):
                         console.print("[dim red]  Duration must be positive, RPE must be 1–10.[/dim red]")
-                        continue
+                        return False
                     sport = " ".join(parts[4:]) if len(parts) > 4 else ""
                     s = TrainingSession(date_offset=day, duration_min=duration, rpe=rpe, sport=sport)
                     self._pending_sessions.append(s)
@@ -2443,7 +2443,7 @@ class Kiwi:
                 pct = float(query.split()[1])
                 if not (50 <= pct <= 110):
                     console.print("[dim red]  Intensity must be 50–110% of 1RM.[/dim red]")
-                    continue
+                    return False
                 result = prilepins_recommendation(pct)
                 console.print(Panel(
                     result["note"] + "\n\n"
@@ -2564,7 +2564,7 @@ class Kiwi:
                     hours = float(parts[2])
                     if dose <= 0 or hours < 0:
                         console.print("[dim red]  Dose must be positive, hours must be non-negative.[/dim red]")
-                        continue
+                        return False
                     fast = len(parts) < 4 or parts[3].lower() != "slow"
                     status = caffeine_clearance(dose, hours, fast_metabolizer=fast)
                     console.print(Panel(
@@ -3108,6 +3108,383 @@ class Kiwi:
             dist = recommend_intensity_distribution(sport, level, phase)
             output = format_intensity_distribution(dist)
             console.print(Panel(output, title=f"[cyan]Intensity Distribution[/cyan]  [dim]{sport}/{level}/{phase}[/dim]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+
+        # ── Injury Prevention ───────────────────────────────────────
+
+        elif q_lower.startswith("/acwr"):
+            parts = query[5:].strip().split()
+            if len(parts) >= 2:
+                try:
+                    loads = [float(p) for p in parts]
+                    result = calculate_acwr(loads)
+                    output = format_acwr_report(result)
+                    console.print(Panel(output, title="[cyan]Acute:Chronic Workload Ratio[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /acwr <load1> <load2> ... (daily training loads, ≥2 days)[/dim]")
+            else:
+                console.print("[dim]  Usage: /acwr <load1> <load2> ... (daily training loads, ≥2 days)[/dim]")
+
+        elif q_lower.startswith("/fms"):
+            parts = query[4:].strip().split()
+            if len(parts) >= 2 and len(parts) % 2 == 0:
+                try:
+                    scores = {parts[i]: int(parts[i + 1]) for i in range(0, len(parts), 2)}
+                    if len(scores) == 1:
+                        movement, score = next(iter(scores.items()))
+                        fms = score_fms_movement(movement, score)
+                        lines = [
+                            f"Movement: {fms.movement}",
+                            f"Score: {fms.score}/3",
+                        ]
+                        if fms.compensations:
+                            lines += ["", "Compensations:"] + [f"  • {c}" for c in fms.compensations]
+                        if fms.corrective_exercises:
+                            lines += ["", "Correctives:"] + [f"  • {c}" for c in fms.corrective_exercises]
+                        output = "\n".join(lines)
+                        console.print(Panel(output, title=f"[cyan]FMS — {movement}[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    else:
+                        composite = calculate_fms_composite(scores)
+                        lines = [
+                            f"Composite Score: {composite['composite_score']}/21",
+                            f"Risk Level: {composite['risk_level'].upper()}",
+                        ]
+                        if composite["priority_movements"]:
+                            lines.append(f"Priority: {', '.join(composite['priority_movements'])}")
+                        if composite["asymmetries"]:
+                            lines.append(f"Asymmetries: {', '.join(composite['asymmetries'])}")
+                        output = "\n".join(lines)
+                        console.print(Panel(output, title="[cyan]FMS Composite[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except (ValueError, KeyError):
+                    console.print("[dim]  Usage: /fms <movement> <score> [<movement> <score> ...]  (scores 0-3)[/dim]")
+            else:
+                console.print("[dim]  Usage: /fms <movement> <score> [<movement> <score> ...]  (scores 0-3)[/dim]")
+                console.print(f"[dim]  Movements: {', '.join(sorted(PROTOCOL_DB.keys())[:3])}..., etc. (see /prevent)[/dim]")
+
+        elif q_lower.startswith("/overuse"):
+            parts = query[8:].strip().split()
+            if len(parts) >= 3:
+                try:
+                    sport = parts[0]
+                    age = int(parts[1])
+                    hours = float(parts[2])
+                    spec_age = int(parts[3]) if len(parts) > 3 else None
+                    result = screen_overuse_risk(sport, age, hours, specialization_age=spec_age)
+                    lines = [
+                        f"Sport: {result.sport}  Age: {result.age}",
+                        f"Training: {result.training_history}",
+                        f"Risk Level: {result.risk_level.upper()}",
+                    ]
+                    if result.risk_factors:
+                        lines += ["", "Risk Factors:"] + [f"  ⚠ {f}" for f in result.risk_factors]
+                    if result.recommendations:
+                        lines += ["", "Recommendations:"] + [f"  • {r}" for r in result.recommendations]
+                    lines += ["", f"Evidence: {result.evidence}"]
+                    output = "\n".join(lines)
+                    console.print(Panel(output, title="[cyan]Overuse Risk Screening[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /overuse <sport> <age> <weekly_hours> [specialization_age][/dim]")
+            else:
+                console.print("[dim]  Usage: /overuse <sport> <age> <weekly_hours> [specialization_age][/dim]")
+
+        elif q_lower.startswith("/return"):
+            parts = query[7:].strip().split()
+            if len(parts) >= 4:
+                try:
+                    injury = parts[0]
+                    weeks = int(parts[1])
+                    pain = int(parts[2])
+                    deficit = float(parts[3])
+                    result = return_to_sport_decision(injury, weeks, pain, deficit)
+                    lines = [
+                        f"Injury: {injury}  Weeks since: {weeks}",
+                        f"Phase: {result['phase']}",
+                        f"Cleared: {'YES' if result['cleared'] else 'NO'}",
+                        f"Timeline: {result['timeline_estimate']}",
+                    ]
+                    if result["criteria_met"]:
+                        lines += ["", "Criteria Met:"] + [f"  ✓ {c}" for c in result["criteria_met"]]
+                    if result["criteria_remaining"]:
+                        lines += ["", "Remaining:"] + [f"  • {c}" for c in result["criteria_remaining"]]
+                    output = "\n".join(lines)
+                    console.print(Panel(output, title="[cyan]Return-to-Sport Decision[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /return <injury> <weeks_since> <pain_0_10> <strength_deficit_%>[/dim]")
+            else:
+                console.print("[dim]  Usage: /return <injury> <weeks_since> <pain_0_10> <strength_deficit_%>[/dim]")
+
+        elif q_lower.startswith("/prevent"):
+            arg = query[8:].strip()
+            if not arg:
+                output = list_prevention_protocols()
+                console.print(Panel(output, title="[cyan]Prevention Protocols[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+            else:
+                proto = get_prevention_protocol(arg)
+                if proto:
+                    sport = self.profile.data.get("sport", "general")
+                    output = format_prevention_protocol(proto, sport)
+                    console.print(Panel(output, title=f"[cyan]{proto.name}[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                else:
+                    console.print(f"[yellow]  No protocol for '{arg}'. Try /prevent with no args to list available.[/yellow]")
+
+        # ── Female Athlete Health ───────────────────────────────────
+
+        elif q_lower.startswith("/cycle"):
+            parts = query[6:].strip().split()
+            if not parts:
+                lines = ["═══ Menstrual Cycle Phases ═══", ""]
+                for phase in CYCLE_PHASES:
+                    lines.append(f"  {phase.phase_name}  (days {phase.day_range[0]}-{phase.day_range[1]})")
+                output = "\n".join(lines)
+                console.print(Panel(output, title="[cyan]Cycle Phases[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+            else:
+                try:
+                    day = int(parts[0])
+                    sport = parts[1] if len(parts) > 1 else self.profile.data.get("sport", "general")
+                    match = match_training_to_phase(day, sport)
+                    phase = match["phase"]
+                    lines = [
+                        f"Day {day} — Phase: {phase.phase_name.replace('_', ' ').title()}",
+                        f"Days range: {phase.day_range[0]}-{phase.day_range[1]}",
+                        "",
+                        f"Focus: {match['recommended_focus']}",
+                        f"Intensity modifier: {match['intensity_modifier']}x",
+                        "",
+                        f"Hormonal: {phase.hormonal_profile}",
+                        "",
+                        f"Training: {phase.training_recommendations}",
+                        "",
+                        f"Nutrition: {phase.nutrition_notes}",
+                        "",
+                        f"Key nutrients: {', '.join(match['key_nutrients'])}",
+                        "",
+                        f"Injury risk: {match['injury_risk_notes']}",
+                    ]
+                    output = "\n".join(lines)
+                    console.print(Panel(output, title=f"[cyan]Cycle Training — Day {day}[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /cycle [day_1-28] [sport][/dim]")
+
+        elif q_lower.startswith("/reds"):
+            arg = query[5:].strip()
+            if not arg:
+                console.print("[dim]  Usage: /reds key=value [key=value ...][/dim]")
+                console.print("[dim]  Keys: bmi, menstrual_status, bone_stress_injuries, disordered_eating, weight_loss_pct, mood_disturbance, gi_issues, recurrent_illness, declining_performance, low_energy_availability[/dim]")
+            else:
+                responses: dict = {}
+                for token in arg.split():
+                    if "=" not in token:
+                        continue
+                    k, v = token.split("=", 1)
+                    vl = v.lower()
+                    if vl in ("true", "yes", "y", "1"):
+                        responses[k] = True
+                    elif vl in ("false", "no", "n", "0"):
+                        responses[k] = False
+                    else:
+                        try:
+                            responses[k] = float(v) if "." in v else int(v)
+                        except ValueError:
+                            responses[k] = v
+                result = screen_reds(responses)
+                output = format_reds_report(result)
+                console.print(Panel(output, title="[cyan]RED-S Screening[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                self._state["last_output"] = output
+
+        elif q_lower.startswith("/iron"):
+            parts = query[5:].strip().split()
+            if len(parts) >= 2:
+                try:
+                    menstrual_status = parts[0]
+                    hours = float(parts[1])
+                    diet = parts[2] if len(parts) > 2 else "omnivore"
+                    result = calculate_iron_needs(menstrual_status, hours, diet)
+                    lines = [
+                        f"RDA: {result['rda_mg']} mg",
+                        f"Recommended: {result['recommended_mg']} mg/day",
+                        "",
+                        f"Rationale: {result['rationale']}",
+                        "",
+                        f"Monitoring: {result['monitoring']}",
+                    ]
+                    output = "\n".join(lines)
+                    console.print(Panel(output, title="[cyan]Iron Needs (Female Athlete)[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /iron <menstrual_status> <weekly_hours> [omnivore|vegetarian|vegan][/dim]")
+                    console.print("[dim]  menstrual_status: normal, heavy, amenorrheic[/dim]")
+            else:
+                console.print("[dim]  Usage: /iron <menstrual_status> <weekly_hours> [omnivore|vegetarian|vegan][/dim]")
+
+        elif q_lower.startswith("/postpartum"):
+            parts = query[11:].strip().split()
+            if len(parts) >= 1:
+                try:
+                    weeks = int(parts[0])
+                    delivery = parts[1] if len(parts) > 1 else "vaginal"
+                    complications = parts[2].split(",") if len(parts) > 2 else []
+                    result = postpartum_return_protocol(weeks, delivery_type=delivery, complications=complications)
+                    lines = [
+                        f"Phase: {result.phase}",
+                        f"Weeks postpartum: {result.weeks_postpartum}",
+                        "",
+                        "Exercise Guidelines:",
+                    ]
+                    lines += [f"  • {g}" for g in result.exercise_guidelines]
+                    if result.contraindications:
+                        lines += ["", "Contraindications:"] + [f"  ⚠ {c}" for c in result.contraindications]
+                    if result.progression_criteria:
+                        lines += ["", "Progression Criteria:"] + [f"  • {c}" for c in result.progression_criteria]
+                    output = "\n".join(lines)
+                    console.print(Panel(output, title="[cyan]Postpartum Return-to-Sport[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /postpartum <weeks> [vaginal|c-section] [comma,sep,complications][/dim]")
+            else:
+                console.print("[dim]  Usage: /postpartum <weeks> [vaginal|c-section] [comma,sep,complications][/dim]")
+
+        # ── Environmental Factors ───────────────────────────────────
+
+        elif q_lower.startswith("/altitude"):
+            parts = query[9:].strip().split()
+            if len(parts) >= 1:
+                try:
+                    target = int(parts[0])
+                    current = int(parts[1]) if len(parts) > 1 else 0
+                    weeks = int(parts[2]) if len(parts) > 2 else 3
+                    sport = parts[3] if len(parts) > 3 else self.profile.data.get("sport", "endurance")
+                    result = altitude_training_protocol(target, current, weeks, sport)
+                    output = format_altitude_protocol(result)
+                    console.print(Panel(output, title="[cyan]Altitude Training[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /altitude <target_m> [current_m] [weeks] [sport][/dim]")
+            else:
+                console.print("[dim]  Usage: /altitude <target_m> [current_m] [weeks] [sport][/dim]")
+
+        elif q_lower.startswith("/heat"):
+            parts = query[5:].strip().split()
+            if len(parts) >= 1:
+                try:
+                    wbgt = float(parts[0])
+                    acclim = parts[1].lower() in ("yes", "true", "y", "1") if len(parts) > 1 else False
+                    result = heat_acclimatization_protocol(wbgt, acclimatized=acclim)
+                    output = format_heat_protocol(result)
+                    console.print(Panel(output, title="[cyan]Heat Acclimatization[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /heat <wbgt_celsius> [acclimatized:yes/no][/dim]")
+            else:
+                console.print("[dim]  Usage: /heat <wbgt_celsius> [acclimatized:yes/no][/dim]")
+
+        elif q_lower.startswith("/cold"):
+            parts = query[5:].strip().split()
+            if len(parts) >= 1:
+                try:
+                    temp = float(parts[0])
+                    wind = float(parts[1]) if len(parts) > 1 else 0.0
+                    precip = parts[2].lower() in ("yes", "true", "y", "1") if len(parts) > 2 else False
+                    result = cold_exposure_protocol(temp, wind_speed_kmh=wind, precipitation=precip)
+                    output = format_cold_protocol(result)
+                    console.print(Panel(output, title="[cyan]Cold Exposure[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /cold <temp_c> [wind_kmh] [precipitation:yes/no][/dim]")
+            else:
+                console.print("[dim]  Usage: /cold <temp_c> [wind_kmh] [precipitation:yes/no][/dim]")
+
+        elif q_lower.startswith("/airquality"):
+            parts = query[11:].strip().split()
+            if len(parts) >= 1:
+                try:
+                    aqi = int(parts[0])
+                    result = air_quality_adjustment(aqi)
+                    output = format_air_quality(result)
+                    console.print(Panel(output, title="[cyan]Air Quality[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /airquality <aqi_0_500>[/dim]")
+            else:
+                console.print("[dim]  Usage: /airquality <aqi_0_500>[/dim]")
+
+        elif q_lower.startswith("/jetlag"):
+            parts = query[7:].strip().split()
+            if len(parts) >= 1:
+                try:
+                    zones = int(parts[0])
+                    direction = parts[1] if len(parts) > 1 else "east"
+                    result = jet_lag_protocol(zones, direction)
+                    output = format_jet_lag(result)
+                    console.print(Panel(output, title="[cyan]Jet Lag Protocol[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /jetlag <time_zones> [east|west][/dim]")
+            else:
+                console.print("[dim]  Usage: /jetlag <time_zones> [east|west][/dim]")
+
+        # ── Mental Performance ──────────────────────────────────────
+
+        elif q_lower.startswith("/anxiety"):
+            parts = query[8:].strip().split()
+            if len(parts) >= 3:
+                try:
+                    cog = float(parts[0])
+                    som = float(parts[1])
+                    conf = float(parts[2])
+                    result = assess_competition_anxiety(cog, som, conf)
+                    output = format_anxiety_report(result)
+                    console.print(Panel(output, title="[cyan]Competition Anxiety[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /anxiety <cognitive_1_4> <somatic_1_4> <confidence_1_4>[/dim]")
+            else:
+                console.print("[dim]  Usage: /anxiety <cognitive_1_4> <somatic_1_4> <confidence_1_4>[/dim]")
+
+        elif q_lower.startswith("/burnout"):
+            arg = query[8:].strip()
+            if not arg or " recovery " not in f" {arg} ":
+                console.print("[dim]  Usage: /burnout stress k1=v1 k2=v2 ... recovery k3=v3 k4=v4 ...[/dim]")
+                console.print("[dim]  Stress keys: general_stress, emotional_stress, social_stress, training_stress, injury_concern (0-6)[/dim]")
+                console.print("[dim]  Recovery keys: sleep_quality, social_recovery, physical_recovery, general_wellbeing, self_efficacy (0-6)[/dim]")
+            else:
+                try:
+                    stress_part, recovery_part = arg.split(" recovery ", 1)
+                    stress_part = stress_part.replace("stress", "", 1).strip()
+                    stress_scores: dict = {}
+                    recovery_scores: dict = {}
+                    for token in stress_part.split():
+                        if "=" in token:
+                            k, v = token.split("=", 1)
+                            stress_scores[k] = float(v)
+                    for token in recovery_part.split():
+                        if "=" in token:
+                            k, v = token.split("=", 1)
+                            recovery_scores[k] = float(v)
+                    result = assess_burnout(stress_scores, recovery_scores)
+                    output = format_burnout_report(result)
+                    console.print(Panel(output, title="[cyan]Burnout Risk[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                except ValueError:
+                    console.print("[dim]  Usage: /burnout stress k1=v1 ... recovery k2=v2 ...[/dim]")
+
+        elif q_lower.startswith("/visualize"):
+            arg = query[10:].strip()
+            if not arg:
+                output = list_visualization_protocols()
+                console.print(Panel(output, title="[cyan]Visualization Protocols[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+            else:
+                proto = get_visualization_protocol(arg)
+                if proto:
+                    output = format_visualization(proto)
+                    console.print(Panel(output, title=f"[cyan]{proto.name}[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+                    self._state["last_output"] = output
+                else:
+                    console.print(f"[yellow]  No visualization for '{arg}'. Try /visualize with no args to list available.[/yellow]")
 
         # ── Sports Intelligence Assessment ──────────────────────────
 

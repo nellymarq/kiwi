@@ -27,6 +27,42 @@ from .freshness import format_freshness_report
 from .timing_schedule import generate_timing_schedule
 from .client_export import export_client
 from .config import load_config
+from .injury_prevention import (
+    calculate_acwr,
+    score_fms_movement,
+    calculate_fms_composite,
+    screen_overuse_risk,
+    get_prevention_protocol,
+    return_to_sport_decision,
+    list_prevention_protocols,
+    PROTOCOL_DB,
+)
+from .female_athlete import (
+    get_cycle_phase,
+    match_training_to_phase,
+    screen_reds,
+    postpartum_return_protocol,
+    calculate_iron_needs,
+    CYCLE_PHASES,
+)
+from .environmental import (
+    altitude_training_protocol,
+    heat_acclimatization_protocol,
+    air_quality_adjustment,
+    cold_exposure_protocol,
+    jet_lag_protocol,
+    WBGT_CATEGORIES,
+    AQI_CATEGORIES,
+)
+from .mental_performance import (
+    assess_competition_anxiety,
+    assess_mental_fatigue,
+    assess_burnout,
+    get_visualization_protocol,
+    list_visualization_protocols,
+    generate_pre_competition_routine,
+    VISUALIZATION_DB,
+)
 
 __all__ = [
     "PubMedClient", "OpenAlexClient", "ClinicalTrialsClient",
@@ -42,4 +78,15 @@ __all__ = [
     "route_natural_language", "get_template", "list_templates",
     "analyze_gaps", "analyze_frontiers", "format_freshness_report",
     "generate_timing_schedule", "export_client", "load_config",
+    "calculate_acwr", "score_fms_movement", "calculate_fms_composite",
+    "screen_overuse_risk", "get_prevention_protocol", "return_to_sport_decision",
+    "list_prevention_protocols", "PROTOCOL_DB",
+    "get_cycle_phase", "match_training_to_phase", "screen_reds",
+    "postpartum_return_protocol", "calculate_iron_needs", "CYCLE_PHASES",
+    "altitude_training_protocol", "heat_acclimatization_protocol",
+    "air_quality_adjustment", "cold_exposure_protocol", "jet_lag_protocol",
+    "WBGT_CATEGORIES", "AQI_CATEGORIES",
+    "assess_competition_anxiety", "assess_mental_fatigue", "assess_burnout",
+    "get_visualization_protocol", "list_visualization_protocols",
+    "generate_pre_competition_routine", "VISUALIZATION_DB",
 ]
