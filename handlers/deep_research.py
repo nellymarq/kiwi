@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from agents.orchestrator import fetch_literature_context
 from tools.auto_quality import auto_assess as auto_quality_assess
 from tools.effect_size import (
     cohens_d,
@@ -37,6 +36,7 @@ if TYPE_CHECKING:
 
 async def handle_synthesize(kiwi: "Kiwi", query: str, q_lower: str) -> None:
     """Handle /synthesize — SynthesisAgent with multi-source literature context."""
+    from kiwi import fetch_literature_context  # lazy import — kiwi.py defines this
     claim = query[12:].strip()
     if claim:
         kiwi.console.print(f"[dim]  Gathering evidence for synthesis: '{claim}'...[/dim]")
@@ -59,6 +59,7 @@ async def handle_synthesize(kiwi: "Kiwi", query: str, q_lower: str) -> None:
 
 async def handle_review(kiwi: "Kiwi", query: str, q_lower: str) -> None:
     """Handle /review — PRISMA-compliant systematic review."""
+    from kiwi import fetch_literature_context
     topic = query[8:].strip()
     if topic:
         kiwi.console.print(f"[dim]  Conducting systematic review on: '{topic}'...[/dim]")
@@ -82,6 +83,7 @@ async def handle_review(kiwi: "Kiwi", query: str, q_lower: str) -> None:
 
 async def handle_n_of_1(kiwi: "Kiwi", query: str, q_lower: str) -> None:
     """Handle /n_of_1 — n-of-1 experimental design."""
+    from kiwi import fetch_literature_context
     offset = 8 if q_lower.startswith("/n_of_1 ") else 6
     question = query[offset:].strip()
     if question:
