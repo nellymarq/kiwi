@@ -230,6 +230,13 @@ from handlers.deep_research import (
     handle_review,
     handle_synthesize,
 )
+from handlers.delivery import (
+    handle_accepted,
+    handle_pdf,
+    handle_pdf_last,
+    handle_preferences,
+    handle_rejected,
+)
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1322,86 +1329,22 @@ class Kiwi:
             handle_autoquality(self, query, q_lower)
 
         elif q_lower == "/pdf_last":
-            if not self._state["last_output"]:
-                console.print("[dim]  No command output to export. Run a command first.[/dim]")
-            else:
-                try:
-                    practitioner = self.profile.get("name") or ""
-                    brand = BrandConfig(practitioner=practitioner)
-                    pdf_path = generate_client_report(
-                        query=self._state["last_query"] or "Command Output",
-                        response=self._state["last_output"],
-                        score=self._state["last_score"],
-                        critique_data={},
-                        brand=brand,
-                        client_name=self.active_client_name,
-                    )
-                    console.print(f"[dim]  PDF exported: [cyan]{pdf_path}[/cyan][/dim]")
-                except Exception as e:
-                    console.print(f"[dim red]  PDF export failed: {e}[/dim red]")
+            handle_pdf_last(self, query, q_lower)
 
         elif q_lower == "/pdf" or q_lower.startswith("/pdf "):
-            if not self._state["last_response"]:
-                console.print("[dim]  No research session to export yet.[/dim]")
-            else:
-                practitioner = self.profile.get("name") or ""
-                brand = BrandConfig(practitioner=practitioner)
-                grade_level = ""
-                score_val = self._state["last_score"] or 0.0
-                if score_val >= 0.85:
-                    grade_level = "HIGH"
-                elif score_val >= 0.72:
-                    grade_level = "MODERATE"
-                elif score_val >= 0.50:
-                    grade_level = "LOW"
-                else:
-                    grade_level = "VERY LOW"
-                try:
-                    pdf_path = generate_client_report(
-                        query=self._state["last_query"],
-                        response=self._state["last_response"],
-                        score=score_val,
-                        critique_data=self._state["last_critique"] or {},
-                        brand=brand,
-                        client_name=self.active_client_name,
-                        grade_level=grade_level,
-                        thread_name=self.active_thread,
-                    )
-                    console.print(f"[dim]  PDF exported to: [cyan]{pdf_path}[/cyan][/dim]")
-                except Exception as e:
-                    console.print(f"[dim red]  PDF export failed: {e}[/dim red]")
+            handle_pdf(self, query, q_lower)
 
         elif q_lower.startswith("/recommend "):
             await handle_recommend(self, query, q_lower)
 
         elif q_lower.startswith("/accepted"):
-            payload = query[9:].strip() if len(query) > 9 else ""
-            rec_text = self._state["last_response"][:500] if self._state["last_response"] else ""
-            if not rec_text:
-                console.print("[dim]  No recent recommendation to mark accepted.[/dim]")
-            else:
-                self.preferences.record_accepted(rec_text, note=payload)
-                console.print(f"[dim]  Recorded as accepted. Total: {self.preferences.stats()['total_accepted']}[/dim]")
+            handle_accepted(self, query, q_lower)
 
         elif q_lower.startswith("/rejected"):
-            payload = query[9:].strip() if len(query) > 9 else ""
-            rec_text = self._state["last_response"][:500] if self._state["last_response"] else ""
-            if not rec_text:
-                console.print("[dim]  No recent recommendation to mark rejected.[/dim]")
-            else:
-                self.preferences.record_rejected(rec_text, reason=payload)
-                console.print(f"[dim]  Recorded as rejected. Total: {self.preferences.stats()['total_rejected']}[/dim]")
+            handle_rejected(self, query, q_lower)
 
         elif q_lower == "/preferences":
-            stats = self.preferences.stats()
-            block = self.preferences.to_context_block()
-            console.print(Panel(
-                f"Accepted: {stats['total_accepted']}  ·  Rejected: {stats['total_rejected']}\n\n"
-                + (block or "[dim]No preferences recorded yet.[/dim]"),
-                title="[cyan]Recommendation Preferences[/cyan]",
-                border_style="cyan",
-                box=box.SIMPLE,
-            ))
+            handle_preferences(self, query, q_lower)
 
         elif q_lower.startswith("/quality"):
             handle_quality(self, query, q_lower)
