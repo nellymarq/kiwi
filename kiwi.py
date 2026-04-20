@@ -57,7 +57,6 @@ from tools.interactions import lookup_interactions
 from tools.food_database import FDCClient
 from tools.periodization import TrainingLoadCalculator
 from tools.biomarkers import BiomarkerInterpreter
-from agents.sports_agent import run_sports_assessment
 from tools.injury_prevention import (
     calculate_acwr, format_acwr_report,
     get_prevention_protocol, format_prevention_protocol,
@@ -190,6 +189,7 @@ from handlers.progress import (
     handle_trends_with_metric,
 )
 from handlers.interventions import handle_intervention
+from handlers.sports import handle_assess
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -2666,43 +2666,7 @@ class Kiwi:
         # ── Sports Intelligence Assessment ──────────────────────────
 
         elif q_lower.startswith("/assess"):
-            notes = query[8:].strip() if len(query) > 8 else ""
-            console.print()
-            console.print(Panel(
-                "[dim]Running Sports Intelligence Assessment...[/dim]",
-                title="[bold cyan]Sports Intelligence Agent[/bold cyan]",
-                border_style="cyan",
-                box=box.ROUNDED,
-                padding=(0, 2),
-            ))
-            console.print()
-
-            # Build athlete data from profile + any recent state
-            athlete_data = {
-                "athlete_name": self.profile.data.get("name", "Athlete"),
-                "sport": self.profile.data.get("sport", "General"),
-                "training_phase": self.profile.data.get("training_phase", "General Preparation"),
-                "hrv_readings": [],  # User should provide via /readiness first; stored in profile
-                "tsb": getattr(self, "_last_tsb", None),
-                "atl": getattr(self, "_last_atl", None),
-                "ctl": getattr(self, "_last_ctl", None),
-                "sleep_debt_hours": self.profile.data.get("sleep_debt_hours", 0.0),
-                "consecutive_hard_days": self.profile.data.get("consecutive_hard_days", 0),
-                "weeks_since_deload": self.profile.data.get("weeks_since_deload", 0),
-                "subjective_fatigue": self.profile.data.get("subjective_fatigue"),
-                "biomarker_summary": self.profile.data.get("last_biomarker_summary", ""),
-                "planned_session": self.profile.data.get("planned_session", ""),
-                "notes": notes or self.profile.data.get("athlete_notes", ""),
-            }
-
-            def on_assess_text(text: str):
-                console.print(text, end="", markup=False)
-
-            console.print()
-            assessment = await run_sports_assessment(self.client, athlete_data, on_text=on_assess_text)
-            console.print()
-            console.print()
-            console.rule("[dim]Sports Intelligence Assessment Complete[/dim]")
+            await handle_assess(self, query, q_lower)
 
         # ── Research Plan Only ──────────────────────────────────────
 
