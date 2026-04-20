@@ -189,6 +189,7 @@ from handlers.progress import (
     handle_track,
     handle_trends_with_metric,
 )
+from handlers.interventions import handle_intervention
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1461,42 +1462,7 @@ class Kiwi:
                 console.print("[dim]  Usage: /compare_clients <name_a> <name_b>[/dim]")
 
         elif q_lower.startswith("/intervention "):
-            parts = query[14:].strip().split(maxsplit=3)
-            if not parts:
-                console.print("[dim]  Usage: /intervention start|stop|check|list <name> [dose] [target_metric][/dim]")
-            elif parts[0] == "start" and len(parts) >= 2:
-                name = parts[1]
-                dose = parts[2] if len(parts) > 2 else ""
-                target = parts[3] if len(parts) > 3 else ""
-                entry = self.interventions.start(name, dose, target)
-                console.print(f"[dim]  Started intervention: [cyan]{name}[/cyan]"
-                              + (f" ({dose})" if dose else "")
-                              + (f" → tracking {target}" if target else "")
-                              + f"[/dim]")
-            elif parts[0] == "stop" and len(parts) >= 2:
-                reason = parts[2] if len(parts) > 2 else ""
-                if self.interventions.stop(parts[1], reason):
-                    console.print(f"[dim]  Stopped intervention: {parts[1]}[/dim]")
-                else:
-                    console.print(f"[dim red]  No active intervention '{parts[1]}' found[/dim red]")
-            elif parts[0] == "check" and len(parts) >= 2:
-                result = self.interventions.check_outcome(parts[1])
-                console.print(Panel(
-                    self.interventions.format_outcome(result),
-                    title="[cyan]Intervention Outcome[/cyan]",
-                    border_style="cyan", box=box.SIMPLE,
-                ))
-            elif parts[0] == "list":
-                console.print(Panel(
-                    self.interventions.format_active(),
-                    title="[cyan]Active Interventions[/cyan]",
-                    border_style="cyan", box=box.SIMPLE,
-                ))
-            else:
-                console.print("[dim]  /intervention start <name> [dose] [target_metric][/dim]")
-                console.print("[dim]  /intervention stop <name> [reason][/dim]")
-                console.print("[dim]  /intervention check <name>[/dim]")
-                console.print("[dim]  /intervention list[/dim]")
+            handle_intervention(self, query, q_lower)
 
         elif q_lower.startswith("/track "):
             handle_track(self, query, q_lower)
