@@ -202,6 +202,11 @@ from handlers.planning import handle_meal_plan, handle_training_plan
 from handlers.competition_prep import handle_competition_prep
 from handlers.wearable import handle_import_labs, handle_import_wearable, handle_oura
 from handlers.orchestration import handle_digest, handle_unwatch, handle_watch, handle_watched
+from handlers.optimization import (
+    handle_optimize_stack,
+    handle_risk_screen,
+    handle_suggest_research,
+)
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1153,192 +1158,13 @@ class Kiwi:
             handle_dashboard(self, query, q_lower)
 
         elif q_lower == "/optimize_stack" or q_lower.startswith("/optimize_stack "):
-            notes = query[15:].strip() if len(query) > 15 else ""
-            profile_summary = self.profile.to_summary()
-            current_supps = self.profile.get("current_supplements") or []
-            current_stack = ", ".join(current_supps) if current_supps else "none listed"
-            goals = self.profile.get("primary_goal") or notes or "general performance"
-
-            # Build supplement DB summary (compact)
-            db_lines = []
-            for key, proto in SUPPLEMENT_DB.items():
-                db_lines.append(
-                    f"• {proto.name} ({key}) — {proto.evidence} — "
-                    f"{proto.maintenance_dose} — {proto.mechanism[:100]}"
-                )
-            db_summary = "\n".join(db_lines)
-
-            # Build biomarker context from progress data
-            biomarker_lines = []
-            for m in self.progress.get_all_metrics():
-                latest = self.progress.get_latest(m)
-                if latest:
-                    biomarker_lines.append(f"  {m}: {latest['value']} {latest.get('unit', '')} ({latest.get('ts', '')[:10]})")
-            biomarker_text = "\n".join(biomarker_lines) if biomarker_lines else "No biomarker data tracked"
-
-            console.print("[dim]  Analyzing profile + biomarkers + supplement DB + interactions...[/dim]\n")
-            result = await self.stack_optimizer_agent.run({
-                "profile_summary": profile_summary,
-                "goals": goals,
-                "biomarker_data": biomarker_text,
-                "current_stack": current_stack,
-                "supplement_db_summary": db_summary,
-                "interaction_data": "",
-            })
-            self._state["last_output"] = result
-            console.print(result)
+            await handle_optimize_stack(self, query, q_lower)
 
         elif q_lower == "/risk_screen" or q_lower.startswith("/risk_screen "):
-            notes_raw = query[12:].strip() if len(query) > 12 else ""
-            profile_summary = self.profile.to_summary()
-
-            # Parse key=value tokens out of notes; keep non-kv tokens as free text
-            reds_keys = {
-                "menstrual_status", "bmi", "bone_stress_injuries", "disordered_eating",
-                "weight_loss_pct", "mood_disturbance", "gi_issues", "recurrent_illness",
-                "declining_performance", "low_energy_availability",
-            }
-            reds_responses: dict = {}
-            notes_tokens: list = []
-            for tok in notes_raw.split():
-                if "=" in tok:
-                    k, v = tok.split("=", 1)
-                    if k in reds_keys and v.strip():
-                        vl = v.lower()
-                        if vl in ("true", "yes", "y", "1"):
-                            reds_responses[k] = True
-                        elif vl in ("false", "no", "n", "0"):
-                            reds_responses[k] = False
-                        else:
-                            try:
-                                reds_responses[k] = float(v) if "." in v else int(v)
-                            except ValueError:
-                                reds_responses[k] = v
-                        continue
-                notes_tokens.append(tok)
-            notes = " ".join(notes_tokens)
-
-            # Gather biomarker data from progress tracker
-            biomarker_lines = []
-            for m in self.progress.get_all_metrics():
-                latest = self.progress.get_latest(m)
-                if latest:
-                    biomarker_lines.append(f"  {m}: {latest['value']} {latest.get('unit', '')} ({latest.get('ts', '')[:10]})")
-            biomarker_text = "\n".join(biomarker_lines) if biomarker_lines else "No biomarker data tracked"
-
-            # Gather progress trends for key metrics
-            progress_lines = []
-            for m in ["weight", "rhr", "hrv_rmssd", "sleep_hours"]:
-                history = self.progress.get_history(m, limit=7)
-                if history:
-                    vals = [h["value"] for h in history]
-                    progress_lines.append(f"  {m} (last {len(vals)} readings): {' → '.join(f'{v:.1f}' for v in vals)}")
-            progress_text = "\n".join(progress_lines) if progress_lines else "No progress trends available"
-
-            # Autonomous ACWR enrichment: require ≥7 distinct UTC calendar days
-            # of training_load in the last 14 days. Aggregate multiple loads/day.
-            training_load_text = ""
-            raw_loads = self.progress.get_history("training_load", limit=200)
-            if raw_loads:
-                raw_loads.sort(key=lambda e: e.get("ts", ""))
-                by_day: dict = {}
-                for e in raw_loads:
-                    day = str(e.get("ts", ""))[:10]
-                    if day:
-                        by_day[day] = by_day.get(day, 0.0) + float(e.get("value", 0.0))
-                from datetime import datetime as _dt, timedelta as _td, timezone as _tz
-                today = _dt.now(_tz.utc).date()
-                recent_window_days = {
-                    (today - _td(days=i)).isoformat() for i in range(14)
-                }
-                recent_days_with_load = [d for d in by_day if d in recent_window_days]
-                if len(recent_days_with_load) >= 7:
-                    sorted_days = sorted(by_day.keys())
-                    last_28 = sorted_days[-28:]
-                    daily_loads = [by_day[d] for d in last_28]
-                    acwr_result = calculate_acwr(
-                        daily_loads, acute_window=7, chronic_window=28,
-                    )
-                    training_load_text = format_acwr_report(acwr_result)
-
-            # Autonomous RED-S enrichment: gate on sex=female, ≥2 keys, ≥1 clinical key
-            reds_screening_text = ""
-            clinical_keys = {"menstrual_status", "bmi", "bone_stress_injuries", "disordered_eating"}
-            if self.profile.data.get("sex") == "female":
-                # Fill from profile where notes didn't specify (notes override profile)
-                profile_ms = self.profile.data.get("menstrual_status")
-                if profile_ms and "menstrual_status" not in reds_responses:
-                    reds_responses["menstrual_status"] = profile_ms
-                # Derive bone_stress_injuries from injury_history via 3-phrase literal scan
-                if "bone_stress_injuries" not in reds_responses:
-                    injury_history = self.profile.data.get("injury_history") or []
-                    bone_phrases = ("stress fracture", "bone stress", "stress reaction")
-                    bone_count = sum(
-                        1 for inj in injury_history
-                        if any(phrase in str(inj).lower() for phrase in bone_phrases)
-                    )
-                    if bone_count > 0:
-                        reds_responses["bone_stress_injuries"] = bone_count
-                if (
-                    len(reds_responses) >= 2
-                    and any(k in reds_responses for k in clinical_keys)
-                ):
-                    reds_result = screen_reds(reds_responses)
-                    reds_screening_text = format_reds_report(reds_result)
-
-            console.print("[dim]  Running comprehensive risk screening...[/dim]\n")
-            result = await self.risk_screen_agent.run({
-                "profile_summary": profile_summary,
-                "biomarker_data": biomarker_text,
-                "progress_data": progress_text,
-                "training_load": training_load_text,
-                "notes": notes,
-                "reds_screening": reds_screening_text,
-            })
-            self._state["last_output"] = result
-            console.print(result)
+            await handle_risk_screen(self, query, q_lower)
 
         elif q_lower == "/suggest_research" or q_lower.startswith("/suggest_research "):
-            notes = query[17:].strip() if len(query) > 17 else ""
-            profile_summary = self.profile.to_summary()
-            current_supps = self.profile.get("current_supplements") or []
-
-            # Biomarkers from progress
-            biomarker_lines = []
-            for m in self.progress.get_all_metrics():
-                latest = self.progress.get_latest(m)
-                if latest:
-                    biomarker_lines.append(f"  {m}: {latest['value']} {latest.get('unit', '')}")
-            biomarker_text = "\n".join(biomarker_lines) if biomarker_lines else ""
-
-            # Recent research history from memory
-            recent = self.memory.get_recent_episodic(10)
-            recent_text = "\n".join(
-                f"  [{e.get('ts', '')[:10]}] {e.get('query', '')[:150]}"
-                for e in recent
-            ) if recent else "No prior research for this client"
-
-            # Progress trends
-            progress_lines = []
-            for m in self.progress.get_all_metrics():
-                history = self.progress.get_history(m, limit=5)
-                if len(history) >= 2:
-                    first = history[0]["value"]
-                    last = history[-1]["value"]
-                    change = last - first
-                    progress_lines.append(f"  {m}: {first:.1f} → {last:.1f} ({change:+.1f})")
-            progress_text = "\n".join(progress_lines) if progress_lines else ""
-
-            console.print("[dim]  Analyzing data to generate research suggestions...[/dim]\n")
-            result = await self.question_gen_agent.run({
-                "profile_summary": profile_summary,
-                "biomarker_data": biomarker_text,
-                "current_stack": ", ".join(current_supps) if current_supps else "none",
-                "recent_research": recent_text,
-                "progress_data": progress_text,
-            })
-            self._state["last_output"] = result
-            console.print(result)
+            await handle_suggest_research(self, query, q_lower)
 
         elif q_lower.startswith("/template"):
             name = query[9:].strip() if len(query) > 9 else ""
