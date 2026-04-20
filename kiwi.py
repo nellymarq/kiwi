@@ -53,7 +53,7 @@ from agents.synthesis import SynthesisAgent
 from agents.n_of_1 import NOf1Agent
 from tools.calculations import SportsCalc
 from tools.exporter import ResearchExporter
-from tools.interactions import lookup_interactions, lookup_single, format_interaction_report, has_novel_compounds, analyze_novel_interactions
+from tools.interactions import lookup_interactions
 from tools.food_database import FDCClient
 from tools.periodization import (
     TrainingSession, TrainingLoadCalculator,
@@ -61,7 +61,6 @@ from tools.periodization import (
 )
 from tools.biomarkers import BiomarkerInterpreter
 from agents.sports_agent import run_sports_assessment
-from tools.supplements import resolve_supplement, format_dosing_protocol, list_supplements_by_category
 from tools.injury_prevention import (
     calculate_acwr, format_acwr_report,
     get_prevention_protocol, format_prevention_protocol,
@@ -91,8 +90,7 @@ from agents.competition_prep import CompetitionPrepAgent
 from memory.sessions import save_session, load_session, list_sessions
 from memory.session_log import log_exchange, log_stats
 from tools.config import load_config, validate_config, first_run_check, create_default_config
-from tools.supplements import resolve_supplement, SUPPLEMENT_DB, list_supplements_by_category
-from tools.interactions import lookup_interactions
+from tools.supplements import SUPPLEMENT_DB
 from memory.progress import ProgressTracker, KNOWN_METRICS
 from agents.stack_optimizer import StackOptimizerAgent
 from agents.risk_screen import RiskScreenAgent
@@ -175,6 +173,13 @@ from handlers.hydration import (
     handle_urine,
 )
 from handlers.labs import handle_biomarker, handle_labs
+from handlers.food import handle_compare, handle_food
+from handlers.supplements import (
+    handle_check,
+    handle_interact,
+    handle_supp,
+    handle_supplist,
+)
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -2517,118 +2522,18 @@ class Kiwi:
         # ── Supplement Interaction Checker ──────────────────────────
 
         elif q_lower.startswith("/check "):
-            raw = query[7:].strip()
-            if raw:
-                compounds = [c.strip() for c in raw.split() if c.strip()]
-                with console.status(
-                    f"[dim cyan]  Checking interactions for: {', '.join(compounds)}...[/dim cyan]",
-                    spinner="dots2",
-                ):
-                    interactions = lookup_interactions(compounds, min_severity="synergistic")
-                report = format_interaction_report(compounds, interactions)
-                console.print(Panel(
-                    report,
-                    title="[cyan]Supplement Interaction Report[/cyan]",
-                    border_style="cyan",
-                    box=box.ROUNDED,
-                    padding=(0, 2),
-                ))
-
-                # Claude fallback for novel compounds not in local DB
-                novel = has_novel_compounds(compounds)
-                if novel:
-                    console.print(f"\n[dim cyan]  Novel compounds detected: {', '.join(novel)}[/dim cyan]")
-                    console.print("[dim cyan]  Running Claude analysis for comprehensive interaction check...[/dim cyan]\n")
-
-                    def on_check_text(text: str):
-                        console.print(text, end="", markup=False)
-
-                    analysis = await analyze_novel_interactions(self.client, compounds, on_text=on_check_text)
-                    console.print("\n")
-                    console.rule("[dim]Claude Interaction Analysis Complete[/dim]")
-            else:
-                console.print("[dim]  Usage: /check caffeine creatine melatonin[/dim]")
+            await handle_check(self, query, q_lower)
 
         elif q_lower.startswith("/interact "):
-            compound = query[10:].strip()
-            if compound:
-                interactions = lookup_single(compound)
-                if interactions:
-                    report = format_interaction_report([compound], interactions)
-                    console.print(Panel(
-                        report,
-                        title=f"[cyan]Interactions: {compound.title()}[/cyan]",
-                        border_style="cyan",
-                        box=box.ROUNDED,
-                        padding=(0, 2),
-                    ))
-                else:
-                    console.print(f"[dim]  No known interactions for '{compound}' in local database.[/dim]")
-                    console.print("[dim cyan]  Running Claude analysis...[/dim cyan]\n")
-
-                    def on_interact_text(text: str):
-                        console.print(text, end="", markup=False)
-
-                    analysis = await analyze_novel_interactions(self.client, [compound], on_text=on_interact_text)
-                    console.print("\n")
-                    console.rule("[dim]Claude Interaction Analysis Complete[/dim]")
-            else:
-                console.print("[dim]  Usage: /interact caffeine[/dim]")
+            await handle_interact(self, query, q_lower)
 
         # ── Food & Nutrition Lookup ──────────────────────────────────
 
         elif q_lower.startswith("/food+ ") or q_lower.startswith("/food "):
-            include_aminos = q_lower.startswith("/food+ ")
-            prefix_len = 7 if include_aminos else 6
-            args = query[prefix_len:].strip().split()
-            food_name = " ".join(args[:-1]) if args and args[-1].lstrip("-").replace(".", "", 1).isdigit() else " ".join(args)
-            grams = float(args[-1]) if args and args[-1].lstrip("-").replace(".", "", 1).isdigit() else 100.0
-            if grams <= 0:
-                console.print("[dim red]  Serving size must be positive.[/dim red]")
-                return False
-
-            if food_name:
-                with console.status(
-                    f"[dim cyan]  Looking up '{food_name}' in USDA FoodData Central...[/dim cyan]",
-                    spinner="earth",
-                ):
-                    food = self.fdc.search_and_get(
-                        food_name, serving_g=grams, include_aminos=include_aminos
-                    )
-                if food:
-                    console.print(Panel(
-                        food.full_report(include_aminos=include_aminos),
-                        title=f"[cyan]USDA FoodData Central[/cyan]  [dim]FDC#{food.fdc_id}[/dim]",
-                        border_style="cyan",
-                        box=box.ROUNDED,
-                        padding=(0, 2),
-                    ))
-                else:
-                    console.print(f"[dim]  No results for '{food_name}'. Try a different name.[/dim]")
-            else:
-                console.print("[dim]  Usage: /food chicken breast [150][/dim]")
+            handle_food(self, query, q_lower)
 
         elif q_lower.startswith("/compare "):
-            raw = query[9:].strip()
-            if raw:
-                foods = [f.strip() for f in raw.split(",") if f.strip()]
-                if len(foods) >= 2:
-                    with console.status(
-                        f"[dim cyan]  Comparing {len(foods)} foods...[/dim cyan]",
-                        spinner="earth",
-                    ):
-                        table_str = self.fdc.compare_foods(foods)
-                    console.print(Panel(
-                        table_str,
-                        title="[cyan]Food Comparison[/cyan]  [dim]USDA FoodData Central[/dim]",
-                        border_style="cyan",
-                        box=box.ROUNDED,
-                        padding=(0, 1),
-                    ))
-                else:
-                    console.print("[dim]  Usage: /compare chicken breast, salmon, tofu[/dim]")
-            else:
-                console.print("[dim]  Usage: /compare chicken breast, salmon, tofu[/dim]")
+            handle_compare(self, query, q_lower)
 
         # ── Training Load Commands ──────────────────────────────────
 
@@ -2786,20 +2691,10 @@ class Kiwi:
         # ── Supplements ────────────────────────────────────────────
 
         elif q_lower.startswith("/supplist"):
-            cat = query[9:].strip() or None
-            output = list_supplements_by_category(cat)
-            console.print(Panel(output, title="[cyan]Supplement Database[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
+            handle_supplist(self, query, q_lower)
 
         elif q_lower.startswith("/supp "):
-            name = query[6:].strip()
-            proto = resolve_supplement(name)
-            if proto:
-                sport = self.profile.data.get("sport", "general")
-                weight = self.profile.get("weight_kg")
-                output = format_dosing_protocol(proto, sport, weight_kg=weight)
-                console.print(Panel(output, title=f"[cyan]{proto.name}[/cyan]", border_style="cyan", box=box.ROUNDED, padding=(0, 2)))
-            else:
-                console.print(f"[yellow]  Supplement '{name}' not found. Try /supplist to see all options.[/yellow]")
+            handle_supp(self, query, q_lower)
 
         # ── Body Composition ──────────────────────────────────────────
 
