@@ -219,6 +219,17 @@ from handlers.intel import (
     handle_timing,
     handle_weekly_report,
 )
+from handlers.deep_research import (
+    handle_autoquality,
+    handle_effect,
+    handle_grade,
+    handle_n_of_1,
+    handle_quality,
+    handle_readpdf,
+    handle_recommend,
+    handle_review,
+    handle_synthesize,
+)
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1043,47 +1054,10 @@ class Kiwi:
             handle_tldr(self, query, q_lower)
 
         elif q_lower.startswith("/synthesize "):
-            claim = query[12:].strip()
-            if claim:
-                console.print(f"[dim]  Gathering evidence for synthesis: '{claim}'...[/dim]")
-                # Pull from all 5 sources with larger limits for deep synthesis
-                papers_ctx = fetch_literature_context(
-                    claim, self.pubmed, self.openalex, self.epmc, self.semantic,
-                    max_pubmed=8, max_openalex=5, max_epmc=5, max_semantic=5,
-                )
-
-                if not papers_ctx:
-                    console.print("[dim red]  No literature found for this claim.[/dim red]")
-                else:
-                    console.print("[dim]  Running structured synthesis with GRADE assessment...[/dim]\n")
-                    result = await self.synthesis_agent.run({
-                        "claim": claim,
-                        "papers_context": papers_ctx,
-                        "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
-                    })
-                    self._state["last_output"] = result
-                    console.print(result)
+            await handle_synthesize(self, query, q_lower)
 
         elif q_lower.startswith("/review "):
-            topic = query[8:].strip()
-            if topic:
-                console.print(f"[dim]  Conducting systematic review on: '{topic}'...[/dim]")
-                papers_ctx = fetch_literature_context(
-                    topic, self.pubmed, self.openalex, self.epmc, self.semantic,
-                    max_pubmed=10, max_openalex=8, max_epmc=8, max_semantic=8,
-                    years_back=10,
-                )
-                if not papers_ctx:
-                    console.print("[dim red]  No literature retrieved. Cannot conduct review.[/dim red]")
-                else:
-                    console.print("[dim]  Running PRISMA-compliant systematic review...[/dim]\n")
-                    result = await self.systematic_review_agent.run({
-                        "question": topic,
-                        "papers_context": papers_ctx,
-                        "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
-                    })
-                    self._state["last_output"] = result
-                    console.print(result)
+            await handle_review(self, query, q_lower)
 
         elif q_lower.startswith("/watch "):
             handle_watch(self, query, q_lower)
@@ -1108,22 +1082,7 @@ class Kiwi:
             handle_team(self, query, q_lower)
 
         elif q_lower.startswith("/n_of_1 ") or q_lower.startswith("/nof1 "):
-            offset = 8 if q_lower.startswith("/n_of_1 ") else 6
-            question = query[offset:].strip()
-            if question:
-                research_ctx = ""
-                if self.pubmed or self.openalex:
-                    research_ctx = fetch_literature_context(
-                        question, self.pubmed, self.openalex, self.epmc, self.semantic,
-                    )
-                console.print("[dim]  Designing n-of-1 experimental protocol...[/dim]\n")
-                result = await self.n_of_1_agent.run({
-                    "question": question,
-                    "research_context": research_ctx,
-                    "profile_summary": self.profile.to_summary() if self.profile.is_complete() else "",
-                })
-                self._state["last_output"] = result
-                console.print(result)
+            await handle_n_of_1(self, query, q_lower)
 
         elif q_lower.startswith("/meal_plan") or q_lower.startswith("/mealplan"):
             await handle_meal_plan(self, query, q_lower)
@@ -1354,81 +1313,13 @@ class Kiwi:
             ))
 
         elif q_lower.startswith("/effect "):
-            parts = query[8:].strip().split()
-            if len(parts) == 6:
-                try:
-                    m1, sd1, n1, m2, sd2, n2 = (
-                        float(parts[0]), float(parts[1]), int(parts[2]),
-                        float(parts[3]), float(parts[4]), int(parts[5]),
-                    )
-                    d_result = cohens_d(m1, sd1, n1, m2, sd2, n2)
-                    g_result = hedges_g(m1, sd1, n1, m2, sd2, n2)
-                    md_result = mean_difference(m1, sd1, n1, m2, sd2, n2)
-                    console.print(Panel(
-                        f"{d_result.display()}\n\n"
-                        f"{g_result.display()}\n\n"
-                        f"{md_result.display()}",
-                        title="[cyan]Effect Size Analysis[/cyan]",
-                        border_style="cyan",
-                        box=box.SIMPLE,
-                    ))
-                except (ValueError, ZeroDivisionError) as e:
-                    console.print(f"[dim red]  Error: {e}[/dim red]")
-            elif len(parts) == 4:
-                try:
-                    ea, ta, eb, tb = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
-                    rr = relative_risk(ea, ta, eb, tb)
-                    or_val = odds_ratio(ea, ta, eb, tb)
-                    nnt = number_needed_to_treat(ea, ta, eb, tb)
-                    console.print(Panel(
-                        f"{rr.display()}\n\n"
-                        f"{or_val.display()}\n\n"
-                        f"NNT: {nnt['interpretation']}",
-                        title="[cyan]Effect Size (Dichotomous)[/cyan]",
-                        border_style="cyan",
-                        box=box.SIMPLE,
-                    ))
-                except ValueError as e:
-                    console.print(f"[dim red]  Error: {e}[/dim red]")
-            else:
-                console.print(
-                    "[dim]  Usage for continuous: /effect <mean1> <sd1> <n1> <mean2> <sd2> <n2>[/dim]\n"
-                    "[dim]  Usage for dichotomous: /effect <events_a> <total_a> <events_b> <total_b>[/dim]"
-                )
+            handle_effect(self, query, q_lower)
 
         elif q_lower.startswith("/readpdf "):
-            doi = query[9:].strip()
-            if doi and self.unpaywall:
-                console.print(f"[dim]  Looking up OA version for {doi}...[/dim]")
-                pdf = read_oa_pdf(doi, self.unpaywall)
-                if pdf:
-                    console.print(f"[dim]  Extracted {pdf.extracted_chars:,} chars across {pdf.num_pages} pages[/dim]")
-                    console.print(f"[dim]  Cached at: {pdf.cached_path}[/dim]\n")
-                    sections = pdf.sections()
-                    if sections:
-                        console.print("[cyan]Detected sections:[/cyan]")
-                        for section_name in sections:
-                            console.print(f"  • {section_name}")
-                    console.print(f"\n[cyan]Preview (first 2000 chars):[/cyan]\n")
-                    console.print(pdf.preview(2000))
-                else:
-                    console.print(f"[dim red]  Could not retrieve PDF (no OA version or extraction failed).[/dim red]")
-            elif not self.unpaywall:
-                console.print("[dim]  Unpaywall disabled (run without --no-pubmed).[/dim]")
+            handle_readpdf(self, query, q_lower)
 
         elif q_lower.startswith("/autoquality "):
-            payload = query[13:].strip()
-            if payload:
-                # Simple: run auto-quality on a title (useful for rapid triage)
-                flag = auto_quality_assess(payload)
-                console.print(Panel(
-                    flag.display(),
-                    title="[cyan]Auto Quality Assessment[/cyan]",
-                    border_style="cyan",
-                    box=box.SIMPLE,
-                ))
-            else:
-                console.print("[dim]  Usage: /autoquality <paper title or title + abstract>[/dim]")
+            handle_autoquality(self, query, q_lower)
 
         elif q_lower == "/pdf_last":
             if not self._state["last_output"]:
@@ -1481,69 +1372,7 @@ class Kiwi:
                     console.print(f"[dim red]  PDF export failed: {e}[/dim red]")
 
         elif q_lower.startswith("/recommend "):
-            finding = query[11:].strip()
-            if finding:
-                console.print(f"[dim]  Chaining tools for finding: '{finding}'...[/dim]")
-                profile_summary = self.profile.to_summary() if self.profile.is_complete() else ""
-                current_supps = self.profile.get("current_supplements") or []
-
-                # Quick string-match scan of supplement DB
-                supp_options_parts = []
-                keywords = [w.lower() for w in finding.split() if len(w) > 3]
-                for key, proto in SUPPLEMENT_DB.items():
-                    text_blob = (
-                        proto.name + " " + proto.mechanism + " "
-                        + " ".join(proto.sport_specific_notes.values())
-                    ).lower()
-                    if any(kw in text_blob for kw in keywords):
-                        supp_options_parts.append(
-                            f"• {proto.name} — {proto.maintenance_dose} — "
-                            f"Evidence: {proto.evidence}"
-                        )
-                supp_options = "\n".join(supp_options_parts[:10]) or "(no direct matches in DB)"
-
-                # Interaction check if current stack is known
-                interaction_text = ""
-                if current_supps:
-                    all_compounds = current_supps + [
-                        p.name for key, p in SUPPLEMENT_DB.items()
-                        if any(kw in p.name.lower() for kw in keywords)
-                    ][:5]
-                    if len(all_compounds) > 1:
-                        interactions = lookup_interactions(all_compounds, min_severity="safe")
-                        if interactions:
-                            interaction_text = "\n".join(
-                                f"• {i.compound_a} + {i.compound_b}: {i.severity} — {i.recommendation[:150]}"
-                                for i in interactions[:10]
-                            )
-                        else:
-                            interaction_text = "No significant interactions detected with current stack."
-                    else:
-                        interaction_text = "Current stack has too few items to cross-check."
-                else:
-                    interaction_text = "No current supplement stack on file."
-
-                # Autonomous injury-prevention enrichment via shared helper
-                prevention_text = ""
-                matched_key = match_prevention_protocol(finding)
-                if matched_key:
-                    proto = get_prevention_protocol(matched_key)
-                    if proto:
-                        sport = self.profile.data.get("sport", "general")
-                        prevention_text = format_prevention_protocol(proto, sport)
-
-                # Invoke recommender agent
-                console.print("[dim]  Synthesizing integrated recommendation...[/dim]\n")
-                result = await self.recommender_agent.run({
-                    "finding": finding,
-                    "profile_summary": profile_summary,
-                    "biomarker_interpretation": "",
-                    "supplement_options": supp_options,
-                    "interaction_check": interaction_text,
-                    "prevention_protocol": prevention_text,
-                })
-                self._state["last_output"] = result
-                console.print(result)
+            await handle_recommend(self, query, q_lower)
 
         elif q_lower.startswith("/accepted"):
             payload = query[9:].strip() if len(query) > 9 else ""
@@ -1575,39 +1404,10 @@ class Kiwi:
             ))
 
         elif q_lower.startswith("/quality"):
-            tool = query[8:].strip() if len(query) > 8 else ""
-            if not tool:
-                console.print(
-                    "[dim]  Usage: /quality <tool>  where tool = RoB2 | ROBINS-I | AMSTAR2[/dim]\n"
-                    "[dim]  RoB2 — for randomized trials (Cochrane 2019)[/dim]\n"
-                    "[dim]  ROBINS-I — for non-randomized observational studies[/dim]\n"
-                    "[dim]  AMSTAR2 — for systematic reviews/meta-analyses[/dim]"
-                )
-            else:
-                try:
-                    checklist = quality_checklist(tool)
-                    console.print(Panel(
-                        checklist,
-                        title=f"[cyan]Quality Assessment Checklist[/cyan]",
-                        border_style="cyan",
-                        box=box.SIMPLE,
-                    ))
-                except ValueError as e:
-                    console.print(f"[dim red]  {e}[/dim red]")
+            handle_quality(self, query, q_lower)
 
         elif q_lower.startswith("/grade "):
-            tier = query[7:].strip()
-            if tier in ("🟢", "🟡", "🟠", "🔵"):
-                assessment = assess_from_evidence_tier(tier)
-                console.print(Panel(
-                    assessment.display(),
-                    title="[cyan]GRADE Assessment[/cyan]",
-                    border_style="cyan",
-                    box=box.SIMPLE,
-                ))
-            else:
-                console.print("[dim]  Usage: /grade 🟢 (or 🟡/🟠/🔵) — converts tier to GRADE certainty level.[/dim]")
-                console.print("[dim]  For structured GRADE assessment of a claim, use /synthesize <claim>[/dim]")
+            handle_grade(self, query, q_lower)
 
         elif q_lower.startswith("/trials "):
             handle_trials(self, query, q_lower)
