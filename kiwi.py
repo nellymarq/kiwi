@@ -207,6 +207,18 @@ from handlers.optimization import (
     handle_risk_screen,
     handle_suggest_research,
 )
+from handlers.intel import (
+    handle_brief,
+    handle_capabilities,
+    handle_freshness,
+    handle_frontiers,
+    handle_gaps,
+    handle_macros,
+    handle_retest_due,
+    handle_template,
+    handle_timing,
+    handle_weekly_report,
+)
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1167,327 +1179,32 @@ class Kiwi:
             await handle_suggest_research(self, query, q_lower)
 
         elif q_lower.startswith("/template"):
-            name = query[9:].strip() if len(query) > 9 else ""
-            if not name:
-                console.print(Panel(
-                    list_templates(),
-                    title="[cyan]Protocol Templates[/cyan]",
-                    border_style="cyan", box=box.SIMPLE,
-                ))
-            else:
-                tmpl = get_template(name)
-                if tmpl:
-                    console.print(Panel(
-                        tmpl.content,
-                        title=f"[cyan]{tmpl.name}[/cyan]",
-                        subtitle=f"[dim]{tmpl.duration} · {tmpl.category}[/dim]",
-                        border_style="cyan", box=box.SIMPLE,
-                    ))
-                else:
-                    console.print(f"[dim red]  Template '{name}' not found. Use /template to list.[/dim red]")
+            handle_template(self, query, q_lower)
 
         elif q_lower == "/frontiers":
-            profile_data = self.profile.to_dict()
-            # Gather tracked metrics
-            tracked = {}
-            for m in self.progress.get_all_metrics():
-                history = self.progress.get_history(m, limit=50)
-                tracked[m] = [h["value"] for h in history]
-            # Gather research history
-            research_queries = [
-                e.get("query", "").lower()
-                for e in self.memory.get_recent_episodic(50)
-            ]
-            gaps = analyze_frontiers(profile_data, tracked, research_queries)
-            console.print(Panel(
-                format_frontiers(gaps),
-                title="[cyan]Research Frontiers[/cyan]",
-                border_style="cyan", box=box.SIMPLE,
-            ))
+            handle_frontiers(self, query, q_lower)
 
         elif q_lower == "/freshness":
-            output = format_freshness_report()
-            console.print(Panel(
-                output,
-                title="[cyan]Evidence Freshness[/cyan]",
-                border_style="cyan", box=box.SIMPLE,
-            ))
+            handle_freshness(self, query, q_lower)
 
         elif q_lower == "/brief" or q_lower.startswith("/brief "):
-            # Parse cycle_day=N from args (first-match-wins, range 1-28)
-            arg_text = query[6:].strip() if len(query) > 6 else ""
-            cycle_day = None
-            for tok in arg_text.split():
-                if cycle_day is None and tok.startswith("cycle_day="):
-                    try:
-                        v = int(tok.split("=", 1)[1])
-                        if 1 <= v <= 28:
-                            cycle_day = v
-                    except ValueError:
-                        pass
+            await handle_brief(self, query, q_lower)
 
-            # Fall back to profile extrapolation when arg didn't specify
-            if cycle_day is None:
-                cycle_day = self.profile.get_current_cycle_day()
-
-            profile_summary = self.profile.to_summary()
-
-            # Progress trends
-            progress_lines = []
-            for m in self.progress.get_all_metrics():
-                history = self.progress.get_history(m, limit=7)
-                if history:
-                    latest = history[-1]
-                    vals = [h["value"] for h in history]
-                    direction = "↑" if len(vals) > 1 and vals[-1] > vals[0] else "↓" if len(vals) > 1 and vals[-1] < vals[0] else "→"
-                    progress_lines.append(
-                        f"  {m}: {latest['value']:.1f} {latest.get('unit', '')} {direction} "
-                        f"(last {len(vals)})")
-            progress_text = "\n".join(progress_lines) if progress_lines else "No progress data"
-
-            # Active interventions
-            interventions_text = self.interventions.format_active()
-
-            # Research gaps (lightweight)
-            profile_data = self.profile.to_dict()
-            tracked = {}
-            for m in self.progress.get_all_metrics():
-                history = self.progress.get_history(m, limit=10)
-                tracked[m] = [h["value"] for h in history]
-            research_queries = [e.get("query", "").lower() for e in self.memory.get_recent_episodic(20)]
-            frontier_gaps = analyze_frontiers(profile_data, tracked, research_queries)
-            gaps_text = "\n".join(
-                f"  [{g.priority}] {g.topic}" for g in frontier_gaps[:5]
-            ) if frontier_gaps else "No critical gaps"
-
-            # Retest alerts
-            retest_text = self.interventions.format_retest_due()
-
-            # Timing schedule
-            supplements = self.profile.get("current_supplements") or []
-            timing_text = ""
-            if supplements:
-                schedule = generate_timing_schedule(supplements)
-                timing_text = format_timing_schedule(schedule)
-
-            # Autonomous enrichment 1: ACWR when ≥7 distinct days of load in last 14
-            training_load_text = ""
-            raw_loads = self.progress.get_history("training_load", limit=200)
-            if raw_loads:
-                raw_loads.sort(key=lambda e: e.get("ts", ""))
-                by_day: dict = {}
-                for e in raw_loads:
-                    day = str(e.get("ts", ""))[:10]
-                    if day:
-                        by_day[day] = by_day.get(day, 0.0) + float(e.get("value", 0.0))
-                from datetime import datetime as _dt, timedelta as _td, timezone as _tz
-                today = _dt.now(_tz.utc).date()
-                recent_window_days = {
-                    (today - _td(days=i)).isoformat() for i in range(14)
-                }
-                recent_days_with_load = [d for d in by_day if d in recent_window_days]
-                if len(recent_days_with_load) >= 7:
-                    sorted_days = sorted(by_day.keys())
-                    last_28 = sorted_days[-28:]
-                    daily_loads = [by_day[d] for d in last_28]
-                    acwr_result = calculate_acwr(
-                        daily_loads, acute_window=7, chronic_window=28,
-                    )
-                    training_load_text = format_acwr_report(acwr_result)
-
-            # Autonomous enrichment 2: RED-S from profile (sex=female + ≥2 clinical keys)
-            reds_screening_text = ""
-            if self.profile.data.get("sex") == "female":
-                reds_responses: dict = {}
-                profile_ms = self.profile.data.get("menstrual_status")
-                if profile_ms and profile_ms != "not_applicable":
-                    reds_responses["menstrual_status"] = profile_ms
-                injury_history = self.profile.data.get("injury_history") or []
-                bone_phrases = ("stress fracture", "bone stress", "stress reaction")
-                bone_count = sum(
-                    1 for inj in injury_history
-                    if any(phrase in str(inj).lower() for phrase in bone_phrases)
-                )
-                if bone_count > 0:
-                    reds_responses["bone_stress_injuries"] = bone_count
-                clinical_keys = {"menstrual_status", "bmi", "bone_stress_injuries", "disordered_eating"}
-                if (
-                    len(reds_responses) >= 2
-                    and any(k in reds_responses for k in clinical_keys)
-                ):
-                    reds_result = screen_reds(reds_responses)
-                    reds_screening_text = format_reds_report(reds_result)
-
-            # Autonomous enrichment 3: cycle_phase when cycle_day arg provided + sex=female
-            cycle_phase_context_text = ""
-            if cycle_day is not None and self.profile.data.get("sex") == "female":
-                try:
-                    sport_ctx = self.profile.data.get("sport", "general")
-                    phase_info = match_training_to_phase(cycle_day, sport_ctx)
-                    phase_obj = phase_info["phase"]
-                    cycle_phase_context_text = (
-                        f"Menstrual cycle phase analysis (Kiwi tool, day {cycle_day}):\n"
-                        f"{format_cycle_training(phase_obj)}"
-                    )
-                except (ValueError, KeyError):
-                    cycle_phase_context_text = ""
-
-            console.print("[dim]  Generating daily brief...[/dim]\n")
-            brief_context = {
-                "profile_summary": profile_summary,
-                "progress_data": progress_text,
-                "interventions": interventions_text,
-                "risk_flags": retest_text if "OVERDUE" in retest_text or "DUE NOW" in retest_text else "",
-                "research_gaps": gaps_text,
-                "biomarker_due": retest_text if "No biomarkers" not in retest_text else "",
-                "training_load": training_load_text,
-                "reds_screening": reds_screening_text,
-                "cycle_phase_context": cycle_phase_context_text,
-            }
-            self._state["last_output"] = await self.daily_brief_agent.run(brief_context)
-            console.print(self._state["last_output"])
-
-            # Append timing schedule if available
-            if timing_text and supplements:
-                console.print(f"\n[dim]{timing_text}[/dim]")
 
         elif q_lower == "/macros":
-            missing = [f for f in ("weight_kg", "height_cm", "age", "sex", "activity_level")
-                       if not self.profile.get(f)]
-            if missing:
-                console.print(f"[dim]  Missing: {', '.join(missing)}[/dim]")
-            else:
-                try:
-                    m = self.calc.compute_full_metrics(
-                        weight_kg=self.profile.get("weight_kg"),
-                        height_cm=self.profile.get("height_cm"),
-                        age=self.profile.get("age"),
-                        sex=self.profile.get("sex"),
-                        activity_level=self.profile.get("activity_level"),
-                        body_fat_pct=self.profile.get("body_fat_pct"),
-                    )
-                    goal = self.profile.get("primary_goal") or "performance"
-                    macros = self.calc.macro_periodization(
-                        weight_kg=self.profile.get("weight_kg"),
-                        tdee=m.tdee,
-                        sex=self.profile.get("sex"),
-                        goal=goal,
-                    )
-                    td = macros["training_day"]
-                    rd = macros["rest_day"]
-                    lines = [
-                        f"Macro Periodization — {self.profile.get('weight_kg'):.0f}kg · {goal}",
-                        "",
-                        f"{'':>16} {'Training Day':>16} {'Rest Day':>16}",
-                        "─" * 50,
-                        f"{'Calories':>16} {td['kcal']:>13} kcal {rd['kcal']:>13} kcal",
-                        f"{'Protein':>16} {td['protein_g']:>10}g ({td['protein_g_per_kg']:.1f}/kg) {rd['protein_g']:>10}g ({rd['protein_g_per_kg']:.1f}/kg)",
-                        f"{'Carbs':>16} {td['carb_g']:>10}g ({td['carb_g_per_kg']:.1f}/kg) {rd['carb_g']:>10}g ({rd['carb_g_per_kg']:.1f}/kg)",
-                        f"{'Fat':>16} {td['fat_g']:>13}g {rd['fat_g']:>13}g",
-                        "",
-                        "Evidence: ISSN (Kerksick et al. 2018)",
-                    ]
-                    console.print(Panel("\n".join(lines), title="[cyan]Macro Periodization[/cyan]",
-                                        border_style="cyan", box=box.SIMPLE))
-                except Exception as e:
-                    console.print(f"[dim red]  Error: {e}[/dim red]")
+            handle_macros(self, query, q_lower)
 
         elif q_lower == "/weekly_report":
-            profile_summary = self.profile.to_summary()
-
-            # Gather all client data for the report
-            progress_lines = []
-            for m in self.progress.get_all_metrics():
-                history = self.progress.get_history(m, limit=30)
-                if history:
-                    vals = [h["value"] for h in history]
-                    latest = history[-1]
-                    trend = self.progress.format_trend(m, limit=10)
-                    progress_lines.append(trend)
-            progress_text = "\n\n".join(progress_lines) if progress_lines else "No progress data tracked"
-
-            interventions_text = self.interventions.format_active()
-            retest_text = self.interventions.format_retest_due()
-            dashboard = self.progress.format_dashboard()
-
-            # Build report content
-            report_content = (
-                f"Weekly Progress Report\n"
-                f"Client: {self.active_client_name}\n"
-                f"{'=' * 40}\n\n"
-                f"Profile:\n{profile_summary}\n\n"
-                f"{'─' * 40}\n"
-                f"Current Metrics:\n{dashboard}\n\n"
-                f"{'─' * 40}\n"
-                f"Trends:\n{progress_text}\n\n"
-                f"{'─' * 40}\n"
-                f"Interventions:\n{interventions_text}\n\n"
-                f"{'─' * 40}\n"
-                f"Retests Due:\n{retest_text}\n"
-            )
-
-            try:
-                practitioner = self.profile.get("name") or ""
-                brand = BrandConfig(practitioner=practitioner)
-                pdf_path = generate_client_report(
-                    query=f"Weekly Report — {self.active_client_name}",
-                    response=report_content,
-                    score=0.0,
-                    critique_data={},
-                    brand=brand,
-                    client_name=self.active_client_name,
-                )
-                console.print(f"[dim]  Weekly report exported: [cyan]{pdf_path}[/cyan][/dim]")
-            except Exception as e:
-                console.print(f"[dim red]  Report failed: {e}[/dim red]")
+            handle_weekly_report(self, query, q_lower)
 
         elif q_lower == "/capabilities":
-            caps = (
-                "[bold cyan]RESEARCH[/bold cyan]\n"
-                "  Ask any question · /synthesize · /review (PRISMA) · /n_of_1\n"
-                "  /pubmed · /openalex · /trials · /tldr · /readpdf · /citedby\n"
-                "  /grade · /quality · /autoquality · /effect · /freshness\n\n"
-                "[bold cyan]ATHLETE MANAGEMENT[/bold cyan]\n"
-                "  /clients · /new_client · /switch_client · /onboard · /snapshot\n"
-                "  /compare_clients · /team · /export_client\n\n"
-                "[bold cyan]DAILY WORKFLOW[/bold cyan]\n"
-                "  /brief · /timing · /retest_due · /frontiers · /gaps · /suggest_research\n\n"
-                "[bold cyan]BIOMARKERS & TRACKING[/bold cyan]\n"
-                "  /import_labs · /track · /trends · /dashboard · /labs · /biomarker\n"
-                "  /intervention start|stop|check|list · /risk_screen\n\n"
-                "[bold cyan]NUTRITION[/bold cyan]\n"
-                "  /macros · /meal_plan · /calc · /food · /food+ · /compare\n"
-                "  /supp · /supplist · /check · /interact · /optimize_stack\n\n"
-                "[bold cyan]TRAINING[/bold cyan]\n"
-                "  /training_plan · /fight_prep · /race_prep · /template\n"
-                "  /session · /load · /blocks · /prilepin · /hrzones · /powerzones\n\n"
-                "[bold cyan]DELIVERY[/bold cyan]\n"
-                "  /pdf · /pdf_last · /export · /save_session · /resume_session\n"
-                "  /accepted · /rejected · /watch · /digest · /cost"
-            )
-            console.print(Panel(caps, title="[bold cyan]Kiwi Capabilities[/bold cyan]",
-                                border_style="cyan", box=box.ROUNDED))
+            handle_capabilities(self, query, q_lower)
 
         elif q_lower == "/timing":
-            supplements = self.profile.get("current_supplements") or []
-            if not supplements:
-                console.print("[dim]  No supplements on file. Set with /profile set current_supplements creatine,caffeine,...[/dim]")
-            else:
-                schedule = generate_timing_schedule(supplements)
-                conflicts = check_separation_conflicts(supplements)
-                console.print(Panel(
-                    format_timing_schedule(schedule, conflicts),
-                    title="[cyan]Daily Supplement Timing[/cyan]",
-                    border_style="cyan", box=box.SIMPLE,
-                ))
+            handle_timing(self, query, q_lower)
 
         elif q_lower == "/retest_due":
-            output = self.interventions.format_retest_due()
-            console.print(Panel(
-                output,
-                title="[cyan]Biomarker Retests Due[/cyan]",
-                border_style="cyan", box=box.SIMPLE,
-            ))
+            handle_retest_due(self, query, q_lower)
 
         elif q_lower == "/export_client":
             try:
@@ -1497,23 +1214,7 @@ class Kiwi:
                 console.print(f"[dim red]  Export failed: {e}[/dim red]")
 
         elif q_lower == "/gaps":
-            sex = self.profile.get("sex") or "male"
-            sport = self.profile.get("sport") or ""
-            restrictions = self.profile.get("dietary_restrictions") or []
-            supplements = self.profile.get("current_supplements") or []
-            conditions = self.profile.get("health_conditions") or []
-
-            gaps = analyze_gaps(
-                sex=sex, sport=sport,
-                dietary_restrictions=restrictions,
-                current_supplements=supplements,
-                health_conditions=conditions,
-            )
-            console.print(Panel(
-                format_gap_analysis(gaps),
-                title="[cyan]Nutrient Gap Analysis[/cyan]",
-                border_style="cyan", box=box.SIMPLE,
-            ))
+            handle_gaps(self, query, q_lower)
 
         elif q_lower == "/onboard":
             console.print("[cyan]  Client Onboarding Wizard[/cyan]\n")
