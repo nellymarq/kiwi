@@ -237,6 +237,12 @@ from handlers.delivery import (
     handle_preferences,
     handle_rejected,
 )
+from handlers.sessions import (
+    handle_log,
+    handle_resume_session,
+    handle_save_session,
+    handle_sessions,
+)
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1243,81 +1249,16 @@ class Kiwi:
                 ))
 
         elif q_lower.startswith("/save_session"):
-            label = query[13:].strip() if len(query) > 13 else ""
-            if not self.messages:
-                console.print("[dim]  No conversation to save.[/dim]")
-            else:
-                session_id = label or datetime.now().strftime("%Y%m%d_%H%M%S")
-                summary = self._state["last_query"][:200] if last_query else ""
-                path = save_session(
-                    session_id=session_id,
-                    messages=self.messages,
-                    thread=self.active_thread,
-                    summary=summary,
-                    client=self.active_client_name,
-                )
-                console.print(f"[dim]  Session saved: [cyan]{session_id}[/cyan] ({len(self.messages)} messages)[/dim]")
+            handle_save_session(self, query, q_lower)
 
         elif q_lower.startswith("/resume_session") or q_lower.startswith("/resume "):
-            offset = 16 if q_lower.startswith("/resume_session") else 8
-            session_id = query[offset:].strip()
-            if not session_id:
-                console.print("[dim]  Usage: /resume_session <session_id> (see /sessions for list)[/dim]")
-            else:
-                data = load_session(session_id, client=self.active_client_name)
-                if data:
-                    self.messages = data.get("messages", [])
-                    if data.get("thread"):
-                        self.active_thread = data["thread"]
-                    console.print(
-                        f"[dim]  Resumed session: [cyan]{session_id}[/cyan] "
-                        f"({data.get('message_count', 0)} messages, "
-                        f"saved {data.get('saved_at', '')[:10]})[/dim]"
-                    )
-                    if data.get("summary"):
-                        console.print(f"[dim]  Last topic: {data['summary']}[/dim]")
-                else:
-                    console.print(f"[dim red]  Session '{session_id}' not found.[/dim red]")
+            handle_resume_session(self, query, q_lower)
 
         elif q_lower == "/sessions":
-            sessions = list_sessions(client=self.active_client_name)
-            if not sessions:
-                console.print("[dim]  No saved sessions. Use /save_session [label] to save.[/dim]")
-            else:
-                lines = []
-                for s in sessions:
-                    lines.append(
-                        f"  [cyan]{s['session_id']}[/cyan] — "
-                        f"{s.get('saved_at', '')[:16]} · "
-                        f"{s['message_count']} msgs"
-                        + (f" · {s['summary'][:60]}" if s.get("summary") else "")
-                    )
-                console.print(Panel(
-                    "\n".join(lines),
-                    title="[cyan]Saved Sessions[/cyan]",
-                    border_style="cyan", box=box.SIMPLE,
-                ))
+            handle_sessions(self, query, q_lower)
 
         elif q_lower == "/log" or q_lower == "/history":
-            stats = log_stats(client=self.active_client_name)
-            lines = [
-                f"Total queries: {stats['total_queries']}",
-            ]
-            if stats.get("by_route"):
-                lines.append("By route:")
-                for route, count in stats["by_route"].items():
-                    lines.append(f"  {route}: {count}")
-            if stats.get("avg_score") is not None:
-                lines.append(f"Average RWL score: {stats['avg_score']:.2f}")
-            if stats.get("total_cost_usd"):
-                lines.append(f"Total cost: ${stats['total_cost_usd']:.4f}")
-            if stats.get("first_query"):
-                lines.append(f"First query: {stats['first_query']} · Last: {stats['last_query']}")
-            console.print(Panel(
-                "\n".join(lines),
-                title="[cyan]Client Research Log[/cyan]",
-                border_style="cyan", box=box.SIMPLE,
-            ))
+            handle_log(self, query, q_lower)
 
         elif q_lower.startswith("/effect "):
             handle_effect(self, query, q_lower)
