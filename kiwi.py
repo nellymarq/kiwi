@@ -60,12 +60,6 @@ from tools.periodization import (
     prilepins_recommendation, get_block_plan, format_block_plan,
 )
 from tools.biomarkers import interpret_panel, BiomarkerInterpreter
-from tools.hydration import (
-    calculate_sweat_loss, estimate_sweat_loss_by_sport,
-    design_rehydration_protocol, format_rehydration_report,
-    urine_color_status, hyponatremia_risk, pre_exercise_hydration_plan,
-    SPORT_SWEAT_RATES,
-)
 from agents.sports_agent import run_sports_assessment
 from tools.supplements import resolve_supplement, format_dosing_protocol, list_supplements_by_category
 from tools.injury_prevention import (
@@ -171,6 +165,14 @@ from handlers.recovery import (
     handle_readiness,
     handle_recover,
     handle_supercomp,
+)
+from handlers.hydration import (
+    handle_hyponatremia,
+    handle_prehydrate,
+    handle_rehydrate,
+    handle_sweat,
+    handle_sweatest,
+    handle_urine,
 )
 
 # ── Console ───────────────────────────────────────────────────────────────────
@@ -2808,159 +2810,22 @@ class Kiwi:
         # ── Hydration Commands ───────────────────────────────────────
 
         elif q_lower.startswith("/sweat "):
-            parts = query.split()
-            if len(parts) >= 3:
-                try:
-                    pre = float(parts[1])
-                    post = float(parts[2])
-                    fluid = float(parts[3]) if len(parts) > 3 else 0.0
-                    hrs = float(parts[4]) if len(parts) > 4 else 1.0
-                    sport = self.profile.data.get("sport", "general")
-                    sl = calculate_sweat_loss(pre, post, fluid, hrs, sport=sport)
-                    console.print(Panel(
-                        sl.summary(),
-                        title=f"[cyan]Sweat Loss Analysis[/cyan]  [dim]{sport}[/dim]",
-                        border_style="cyan",
-                        box=box.ROUNDED,
-                        padding=(0, 2),
-                    ))
-                except ValueError:
-                    console.print("[dim]  Usage: /sweat <pre_kg> <post_kg> [fluid_L] [duration_hrs][/dim]")
-            else:
-                console.print("[dim]  Usage: /sweat <pre_kg> <post_kg> [fluid_L] [duration_hrs][/dim]")
+            handle_sweat(self, query, q_lower)
 
         elif q_lower.startswith("/sweatest "):
-            parts = query.split()
-            if len(parts) >= 3:
-                try:
-                    sport = parts[1]
-                    hrs = float(parts[2])
-                    weight = self.profile.data.get("weight_kg", 75.0)
-                    intensity = parts[3] if len(parts) > 3 else "moderate"
-                    sl = estimate_sweat_loss_by_sport(sport, hrs, body_weight_kg=float(weight),
-                                                      intensity=intensity)
-                    console.print(Panel(
-                        sl.summary(),
-                        title=f"[cyan]Sweat Estimate[/cyan]  [dim]{sport} · {hrs:.1f}h · {intensity}[/dim]",
-                        border_style="cyan",
-                        box=box.ROUNDED,
-                        padding=(0, 2),
-                    ))
-                except ValueError:
-                    console.print("[dim]  Usage: /sweatest running 1.5 [easy|moderate|hard][/dim]")
-            else:
-                console.print("[dim]  Usage: /sweatest <sport> <hours> [intensity]  "
-                              "Sports: " + ", ".join(list(SPORT_SWEAT_RATES.keys())[:4]) + "...[/dim]")
+            handle_sweatest(self, query, q_lower)
 
         elif q_lower.startswith("/rehydrate "):
-            parts = query.split()
-            if len(parts) >= 3:
-                try:
-                    pre = float(parts[1])
-                    post = float(parts[2])
-                    fluid = float(parts[3]) if len(parts) > 3 else 0.0
-                    hrs = float(parts[4]) if len(parts) > 4 else 1.0
-                    time_next = float(parts[5]) if len(parts) > 5 else 24.0
-                    sport = self.profile.data.get("sport", "general")
-                    sl = calculate_sweat_loss(pre, post, fluid, hrs, sport=sport)
-                    protocol = design_rehydration_protocol(sl, time_next)
-                    console.print(Panel(
-                        format_rehydration_report(protocol, sl),
-                        title="[cyan]Rehydration Protocol[/cyan]",
-                        border_style="cyan",
-                        box=box.ROUNDED,
-                        padding=(0, 2),
-                    ))
-                except ValueError:
-                    console.print("[dim]  Usage: /rehydrate <pre_kg> <post_kg> [fluid_L] [duration_h] [hours_to_next_session][/dim]")
-            else:
-                console.print("[dim]  Usage: /rehydrate <pre_kg> <post_kg>[/dim]")
+            handle_rehydrate(self, query, q_lower)
 
         elif q_lower.startswith("/urine "):
-            parts = query.split()
-            if len(parts) >= 2:
-                try:
-                    color_num = int(parts[1])
-                    result = urine_color_status(color_num)
-                    urgent_flag = " ⚠" if result["urgent"] else ""
-                    lines = [
-                        f"Color #{result['color_number']}: {result['color_name']}",
-                        f"Status: {result['status']}{urgent_flag}",
-                        f"Action: {result['action']}",
-                        f"Evidence: {result['evidence']}",
-                    ]
-                    console.print(Panel(
-                        "\n".join(lines),
-                        title="[cyan]Urine Color / Hydration Status[/cyan]",
-                        border_style="red" if result["urgent"] else "cyan",
-                        box=box.ROUNDED,
-                        padding=(0, 2),
-                    ))
-                except ValueError:
-                    console.print("[dim]  Usage: /urine <1-8>  (1=pale, 8=dark brown)[/dim]")
-            else:
-                console.print("[dim]  Usage: /urine <1-8>  (Armstrong urine color scale)[/dim]")
+            handle_urine(self, query, q_lower)
 
         elif q_lower.startswith("/hyponatremia "):
-            parts = query.split()
-            if len(parts) >= 3:
-                try:
-                    event_hrs = float(parts[1])
-                    intake_L_hr = float(parts[2])
-                    sport = parts[3] if len(parts) > 3 else self.profile.data.get("sport", "endurance")
-                    weight = self.profile.data.get("weight_kg", 70.0)
-                    result = hyponatremia_risk(event_hrs, intake_L_hr, sport, float(weight))
-                    risk_color = {"HIGH": "red", "MODERATE": "yellow", "LOW": "green"}.get(result["risk_level"], "cyan")
-                    lines = [
-                        f"[{risk_color}]Risk Level: {result['risk_level']}[/{risk_color}]",
-                        "",
-                        "Risk Factors:",
-                    ]
-                    for d in result["drivers"]:
-                        lines.append(f"  • {d}")
-                    lines.append(f"\nRecommendation: {result['recommendation']}")
-                    lines.append(f"\n⚠ {result['key_warning']}")
-                    lines.append(f"\nEvidence: {result['evidence']}")
-                    console.print(Panel(
-                        "\n".join(lines),
-                        title="[cyan]Hyponatremia (EAH) Risk Assessment[/cyan]",
-                        border_style=risk_color,
-                        box=box.ROUNDED,
-                        padding=(0, 2),
-                    ))
-                except ValueError:
-                    console.print("[dim]  Usage: /hyponatremia <event_hours> <fluid_L_per_hr> [sport][/dim]")
-            else:
-                console.print("[dim]  Usage: /hyponatremia <event_hours> <L/hr intake>[/dim]")
+            handle_hyponatremia(self, query, q_lower)
 
         elif q_lower.startswith("/prehydrate"):
-            parts = query.split()
-            sport = parts[1] if len(parts) > 1 else self.profile.data.get("sport", "general")
-            hours_to_start = float(parts[2]) if len(parts) > 2 else 3.0
-            weight = self.profile.data.get("weight_kg", 75.0)
-            plan = pre_exercise_hydration_plan(
-                float(weight), event_duration_hours=1.5, sport=sport,
-                start_hours_from_now=hours_to_start,
-            )
-            lines = [
-                f"Pre-exercise fluid target: {plan['pre_exercise_target_mL']}mL",
-                f"Intra-exercise target: {plan['intra_exercise_L_hr']} L/h",
-                f"Expected sweat loss: ~{plan['total_expected_sweat_L']}L",
-                f"Urine target: {plan['urine_target']}",
-                "",
-                "Schedule:",
-            ]
-            for step in plan["schedule"]:
-                lines.append(f"  • {step}")
-            lines.append(f"\nSodium: {plan['sodium_recommendation']}")
-            lines.append(f"Evidence: {plan['evidence']}")
-            console.print(Panel(
-                "\n".join(lines),
-                title=f"[cyan]Pre-Exercise Hydration Plan[/cyan]  [dim]{sport} · T-{hours_to_start:.0f}h[/dim]",
-                border_style="cyan",
-                box=box.ROUNDED,
-                padding=(0, 2),
-            ))
+            handle_prehydrate(self, query, q_lower)
 
         # ── Supplements ────────────────────────────────────────────
 
