@@ -198,6 +198,7 @@ from handlers.literature import (
     handle_tldr,
     handle_trials,
 )
+from handlers.planning import handle_meal_plan, handle_training_plan
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1170,81 +1171,10 @@ class Kiwi:
                 console.print(result)
 
         elif q_lower.startswith("/meal_plan") or q_lower.startswith("/mealplan"):
-            payload = query.split(maxsplit=1)
-            days = 3
-            if len(payload) > 1:
-                try:
-                    days = int(payload[1].strip().split()[0])
-                    days = max(1, min(14, days))
-                except ValueError:
-                    pass
-
-            missing = [f for f in ("weight_kg", "height_cm", "age", "sex", "activity_level")
-                       if not self.profile.get(f)]
-            if missing:
-                console.print(f"[dim red]  Missing profile fields: {', '.join(missing)}. Set with /profile set <field> <value>[/dim red]")
-            else:
-                try:
-                    m = self.calc.compute_full_metrics(
-                        weight_kg=self.profile.get("weight_kg"),
-                        height_cm=self.profile.get("height_cm"),
-                        age=self.profile.get("age"),
-                        sex=self.profile.get("sex"),
-                        activity_level=self.profile.get("activity_level"),
-                        body_fat_pct=self.profile.get("body_fat_pct"),
-                    )
-                    macros_text = m.summary()
-                except Exception as e:
-                    macros_text = f"(could not compute: {e})"
-
-                restrictions = self.profile.get("dietary_restrictions") or []
-                restrictions_text = ", ".join(restrictions) if restrictions else "none"
-                goal = self.profile.get("primary_goal") or "maintenance"
-                sport = self.profile.get("sport") or "general athletic"
-
-                console.print(f"[dim]  Generating {days}-day meal plan for {sport}...[/dim]\n")
-                result = await self.meal_plan_agent.run({
-                    "profile_summary": self.profile.to_summary(),
-                    "macro_targets": macros_text,
-                    "days": days,
-                    "training_schedule": f"Sport: {sport}",
-                    "dietary_restrictions": restrictions_text,
-                    "goal": goal,
-                })
-                self._state["last_output"] = result
-                console.print(result)
+            await handle_meal_plan(self, query, q_lower)
 
         elif q_lower.startswith("/training_plan") or q_lower.startswith("/trainingplan"):
-            parts = query.split(maxsplit=2)
-            sport = self.profile.get("sport") or "strength"
-            weeks = 8
-            if len(parts) >= 2:
-                try:
-                    weeks = int(parts[1].strip())
-                    weeks = max(2, min(24, weeks))
-                except ValueError:
-                    sport = parts[1].strip()
-                    if len(parts) >= 3:
-                        try:
-                            weeks = int(parts[2].strip().split()[0])
-                        except ValueError:
-                            pass
-
-            goal = self.profile.get("primary_goal") or "strength"
-            training_status = self.profile.get("training_status") or "intermediate"
-
-            console.print(f"[dim]  Generating {weeks}-week training block for {sport}...[/dim]\n")
-            result = await self.training_plan_agent.run({
-                "profile_summary": self.profile.to_summary(),
-                "sport": sport,
-                "weeks": weeks,
-                "goal": goal,
-                "current_maxes": "",
-                "current_load": "",
-                "frequency": 4,
-            })
-            self._state["last_output"] = result
-            console.print(result)
+            await handle_training_plan(self, query, q_lower)
 
         elif q_lower.startswith("/fight_prep") or q_lower.startswith("/race_prep"):
             notes_raw = ""
