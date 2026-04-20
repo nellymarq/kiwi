@@ -190,6 +190,14 @@ from handlers.progress import (
 )
 from handlers.interventions import handle_intervention
 from handlers.sports import handle_assess
+from handlers.literature import (
+    handle_citedby,
+    handle_fulltext,
+    handle_openalex,
+    handle_pubmed,
+    handle_tldr,
+    handle_trials,
+)
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1005,60 +1013,13 @@ class Kiwi:
         # ── PubMed Direct Search ────────────────────────────────────
 
         elif q_lower.startswith("/pubmed "):
-            search_query = query[8:].strip()
-            if search_query and self.pubmed:
-                with console.status("[dim cyan]  Searching PubMed...[/dim cyan]", spinner="earth"):
-                    articles = self.pubmed.search_and_fetch(search_query, max_results=8)
-                if articles:
-                    for i, a in enumerate(articles, 1):
-                        console.print(
-                            f"\n[cyan][{i}][/cyan] [bold]{a.title}[/bold]\n"
-                            f"[dim]{', '.join(a.authors[:2])} ({a.year}) · {a.journal}[/dim]\n"
-                            f"PMID: {a.pmid}  DOI: {a.doi}\n"
-                            f"{a.abstract[:400]}..."
-                        )
-                else:
-                    console.print("[dim]  No results found.[/dim]")
-            elif not self.pubmed:
-                console.print("[dim]  PubMed disabled (run without --no-pubmed).[/dim]")
+            handle_pubmed(self, query, q_lower)
 
         elif q_lower.startswith("/fulltext "):
-            doi = query[10:].strip()
-            if doi and self.unpaywall:
-                with console.status("[dim cyan]  Looking up open access version via Unpaywall...[/dim cyan]", spinner="earth"):
-                    result = self.unpaywall.lookup(doi)
-                if result and result.is_oa:
-                    console.print(Panel(
-                        result.summary(),
-                        title="[cyan]Open Access Available[/cyan]",
-                        border_style="green",
-                        box=box.SIMPLE,
-                    ))
-                elif result:
-                    console.print(f"[dim]  No OA version found for {doi}.[/dim]")
-                else:
-                    console.print(f"[dim]  DOI lookup failed.[/dim]")
-            elif not self.unpaywall:
-                console.print("[dim]  Unpaywall disabled (run without --no-pubmed).[/dim]")
+            handle_fulltext(self, query, q_lower)
 
         elif q_lower.startswith("/tldr "):
-            search_query = query[6:].strip()
-            if search_query and self.semantic:
-                with console.status("[dim cyan]  Fetching Semantic Scholar TLDRs...[/dim cyan]", spinner="earth"):
-                    papers = self.semantic.search(search_query, max_results=8)
-                if papers:
-                    for i, p in enumerate(papers, 1):
-                        tldr = p.tldr or "(no TLDR available)"
-                        console.print(
-                            f"\n[cyan][{i}][/cyan] [bold]{p.title}[/bold]\n"
-                            f"[dim]{', '.join(p.authors[:2])} ({p.year}) · {p.journal} · cited {p.citation_count}x[/dim]\n"
-                            f"[green]TLDR:[/green] {tldr}\n"
-                            f"DOI: {p.doi}"
-                        )
-                else:
-                    console.print("[dim]  No papers found.[/dim]")
-            elif not self.semantic:
-                console.print("[dim]  Semantic Scholar disabled (run without --no-pubmed).[/dim]")
+            handle_tldr(self, query, q_lower)
 
         elif q_lower.startswith("/synthesize "):
             claim = query[12:].strip()
@@ -2404,62 +2365,13 @@ class Kiwi:
                 console.print("[dim]  For structured GRADE assessment of a claim, use /synthesize <claim>[/dim]")
 
         elif q_lower.startswith("/trials "):
-            search_query = query[8:].strip()
-            if search_query and self.trials:
-                with console.status("[dim cyan]  Searching ClinicalTrials.gov...[/dim cyan]", spinner="earth"):
-                    results = self.trials.search(search_query, max_results=8)
-                if results:
-                    for i, t in enumerate(results, 1):
-                        console.print(
-                            f"\n[cyan][{i}][/cyan] [bold]{t.title}[/bold]\n"
-                            f"[dim]{t.status} · Phase {t.phase} · N={t.enrollment} · {t.sponsor}[/dim]\n"
-                            f"NCT: {t.nct_id}\n"
-                            f"Conditions: {', '.join(t.conditions[:3])}\n"
-                            f"Interventions: {', '.join(t.interventions[:3])}\n"
-                            f"{t.brief_summary[:300]}..."
-                        )
-                else:
-                    console.print("[dim]  No trials found.[/dim]")
-            elif not self.trials:
-                console.print("[dim]  ClinicalTrials disabled (run without --no-pubmed).[/dim]")
+            handle_trials(self, query, q_lower)
 
         elif q_lower.startswith("/citedby "):
-            doi = query[9:].strip()
-            if doi and self.openalex:
-                with console.status(f"[dim cyan]  Finding papers that cite {doi}...[/dim cyan]", spinner="earth"):
-                    works = self.openalex.fetch_cited_by(doi, max_results=10)
-                if works:
-                    console.print(f"[dim]  Found {len(works)} papers citing {doi}[/dim]")
-                    for i, w in enumerate(works, 1):
-                        oa_tag = " [OA]" if w.open_access else ""
-                        console.print(
-                            f"\n[cyan][{i}][/cyan] [bold]{w.title}[/bold]\n"
-                            f"[dim]{', '.join(w.authors[:2])} ({w.year}) · {w.journal}{oa_tag}[/dim]\n"
-                            f"DOI: {w.doi}  Cited: {w.cited_by_count}"
-                        )
-                else:
-                    console.print("[dim]  No citations found (or DOI invalid).[/dim]")
-            elif not self.openalex:
-                console.print("[dim]  OpenAlex disabled (run without --no-pubmed).[/dim]")
+            handle_citedby(self, query, q_lower)
 
         elif q_lower.startswith("/openalex "):
-            search_query = query[10:].strip()
-            if search_query and self.openalex:
-                with console.status("[dim cyan]  Searching OpenAlex (sports nutrition journals)...[/dim cyan]", spinner="earth"):
-                    works = self.openalex.search_sports_nutrition(search_query, max_results=8)
-                if works:
-                    for i, w in enumerate(works, 1):
-                        oa_tag = " [OA]" if w.open_access else ""
-                        console.print(
-                            f"\n[cyan][{i}][/cyan] [bold]{w.title}[/bold]\n"
-                            f"[dim]{', '.join(w.authors[:2])} ({w.year}) · {w.journal}{oa_tag}[/dim]\n"
-                            f"DOI: {w.doi}  Cited: {w.cited_by_count}\n"
-                            f"{w.abstract[:400]}..."
-                        )
-                else:
-                    console.print("[dim]  No results found.[/dim]")
-            elif not self.openalex:
-                console.print("[dim]  OpenAlex disabled (run without --no-pubmed).[/dim]")
+            handle_openalex(self, query, q_lower)
 
         # ── Supplement Interaction Checker ──────────────────────────
 
