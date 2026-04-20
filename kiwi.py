@@ -35,74 +35,47 @@ import anthropic
 from rich.console import Console
 from rich.panel import Panel
 from rich.markdown import Markdown
-from rich.rule import Rule
 from rich.table import Table
 from rich import box
 
 from agents.orchestrator import KiwiOrchestrator
 from agents.base import REFINEMENT_THRESHOLD
 from tools.pubmed import PubMedClient
-from tools.openalex import OpenAlexClient, SPORTS_NUTRITION_JOURNALS
+from tools.openalex import OpenAlexClient
 from tools.clinical_trials import ClinicalTrialsClient
 from tools.europepmc import EuropePMCClient
 from tools.unpaywall import UnpaywallClient
 from tools.semantic_scholar import SemanticScholarClient
-from tools.grade import assess as grade_assess, GradeInputs, assess_from_evidence_tier
-from tools.quality_assessment import format_checklist as quality_checklist
 from agents.synthesis import SynthesisAgent
 from agents.n_of_1 import NOf1Agent
 from tools.calculations import SportsCalc
 from tools.exporter import ResearchExporter
-from tools.interactions import lookup_interactions
 from tools.food_database import FDCClient
 from tools.periodization import TrainingLoadCalculator
 from tools.biomarkers import BiomarkerInterpreter
-from tools.injury_prevention import (
-    calculate_acwr, format_acwr_report,
-    get_prevention_protocol, format_prevention_protocol,
-    match_prevention_protocol,
-)
-from tools.female_athlete import (
-    match_training_to_phase, screen_reds, format_reds_report,
-    format_cycle_training,
-)
 from memory.store import KiwiMemory
 from memory.profile import UserProfile
 from memory import client_manager
 from memory.preferences import PreferencesStore
-from tools.pdf_export import generate_client_report, BrandConfig
 from agents.recommender import RecommenderAgent
 from agents.meal_plan import MealPlanAgent
 from agents.training_plan import TrainingPlanAgent
-from tools.auto_quality import auto_assess as auto_quality_assess
-from tools.effect_size import cohens_d, hedges_g, mean_difference, relative_risk, odds_ratio, number_needed_to_treat
-from tools.pdf_reader import read_pdf as read_oa_pdf
 from tools.cost_tracker import SessionCostTracker
-from tools.team_analytics import format_team_summary, compare_clients, format_client_snapshot
+from tools.team_analytics import compare_clients, format_client_snapshot
 from memory.watch_list import WatchList
 from memory.interventions import InterventionTracker
 from agents.systematic_review import SystematicReviewAgent
 from agents.competition_prep import CompetitionPrepAgent
-from memory.sessions import save_session, load_session, list_sessions
-from memory.session_log import log_exchange, log_stats
-from tools.config import load_config, validate_config, first_run_check, create_default_config
-from tools.supplements import SUPPLEMENT_DB
-from memory.progress import ProgressTracker, KNOWN_METRICS
+from memory.sessions import save_session
+from memory.session_log import log_exchange
+from tools.config import load_config
+from memory.progress import ProgressTracker
 from agents.stack_optimizer import StackOptimizerAgent
 from agents.risk_screen import RiskScreenAgent
 from agents.question_gen import QuestionGenAgent
-from tools.proactive import check_biomarker, format_proactive_actions
-from tools.contradiction import detect_contradictions, format_contradictions
 from tools.command_router import route_natural_language, format_route_suggestion
-from tools.protocol_templates import get_template, list_templates
-from tools.nutrient_gaps import analyze_gaps, format_gap_analysis
-from tools.knowledge_frontier import analyze_frontiers, format_frontiers
-from tools.freshness import format_freshness_report
 from agents.daily_brief import DailyBriefAgent
-from tools.timing_schedule import generate_timing_schedule, check_separation_conflicts, format_timing_schedule
 from tools.client_export import export_client
-from tools.oura import OuraClient
-from tools.wearable_import import import_file as import_wearable_file, format_import_result
 
 from handlers.injury import (
     handle_acwr,
