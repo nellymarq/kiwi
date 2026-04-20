@@ -145,11 +145,12 @@ def test_get_current_cycle_day_same_day(clean_client):
 
 def test_get_current_cycle_day_with_elapsed_days(clean_client):
     """Manually set an old anchor date; extrapolation adds days with modulo 28."""
-    from datetime import date, timedelta
+    from datetime import datetime, timedelta, timezone
     p = UserProfile(client=clean_client)
     p.data["cycle_day"] = 14
-    # Pretend it was set 10 days ago
-    past = (date.today() - timedelta(days=10)).isoformat()
+    # Pretend it was set 10 days ago (UTC — matches production)
+    utc_today = datetime.now(timezone.utc).date()
+    past = (utc_today - timedelta(days=10)).isoformat()
     p.data["cycle_day_set_at"] = past
     # Day 14 + 10 = day 24
     assert p.get_current_cycle_day() == 24
@@ -157,21 +158,23 @@ def test_get_current_cycle_day_with_elapsed_days(clean_client):
 
 def test_get_current_cycle_day_wraps_past_28(clean_client):
     """Extrapolation wraps at 28 via modulo."""
-    from datetime import date, timedelta
+    from datetime import datetime, timedelta, timezone
     p = UserProfile(client=clean_client)
     p.data["cycle_day"] = 20
-    # 10 days after day 20 → (20 + 10 - 1) % 28 + 1 = 30 % 28 + 1 = 3
-    past = (date.today() - timedelta(days=10)).isoformat()
+    utc_today = datetime.now(timezone.utc).date()
+    past = (utc_today - timedelta(days=10)).isoformat()
     p.data["cycle_day_set_at"] = past
-    assert p.get_current_cycle_day() == 2  # 20+10=30, (30-1)%28+1 = 29%28+1 = 1+1 = 2
+    # Day 20 + 10 elapsed → ((20-1+10) % 28) + 1 = (29 % 28) + 1 = 2
+    assert p.get_current_cycle_day() == 2
 
 
 def test_get_current_cycle_day_full_cycle(clean_client):
     """Day N + 28 days = day N again."""
-    from datetime import date, timedelta
+    from datetime import datetime, timedelta, timezone
     p = UserProfile(client=clean_client)
     p.data["cycle_day"] = 7
-    past = (date.today() - timedelta(days=28)).isoformat()
+    utc_today = datetime.now(timezone.utc).date()
+    past = (utc_today - timedelta(days=28)).isoformat()
     p.data["cycle_day_set_at"] = past
     assert p.get_current_cycle_day() == 7
 
@@ -190,11 +193,12 @@ def test_get_current_cycle_day_returns_none_on_malformed_date(clean_client):
 
 def test_get_current_cycle_day_clock_skew_negative_elapsed(clean_client):
     """If anchor date is in the future (clock skew), return raw anchor."""
-    from datetime import date, timedelta
+    from datetime import datetime, timedelta, timezone
     p = UserProfile(client=clean_client)
     p.data["cycle_day"] = 14
-    # Future date — should return raw anchor, not negative math
-    future = (date.today() + timedelta(days=5)).isoformat()
+    # Future UTC date — should return raw anchor, not negative math
+    utc_today = datetime.now(timezone.utc).date()
+    future = (utc_today + timedelta(days=5)).isoformat()
     p.data["cycle_day_set_at"] = future
     assert p.get_current_cycle_day() == 14
 

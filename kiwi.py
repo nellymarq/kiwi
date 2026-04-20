@@ -60,11 +60,6 @@ from tools.periodization import (
     prilepins_recommendation, get_block_plan, format_block_plan,
 )
 from tools.biomarkers import interpret_panel, BiomarkerInterpreter
-from tools.sleep_optimizer import (
-    classify_chronotype, optimal_wake_times, caffeine_clearance,
-    sleep_debt_report, athlete_sleep_target, format_hormonal_windows, pre_sleep_protocol,
-    CHRONOTYPE_PROFILES,
-)
 from tools.recovery import (
     HRVReading, compute_readiness, format_readiness_report,
     estimate_doms, supercompensation_window, assess_deload_need,
@@ -166,6 +161,14 @@ from handlers.body_composition import (
     handle_ffmi,
     handle_skinfold,
     handle_weightplan,
+)
+from handlers.sleep import (
+    handle_bedtime,
+    handle_caffeine,
+    handle_chronotype,
+    handle_hormones,
+    handle_sleep,
+    handle_sleepdebt,
 )
 
 # ── Console ───────────────────────────────────────────────────────────────────
@@ -2763,115 +2766,22 @@ class Kiwi:
         # ── Sleep Optimization Commands ──────────────────────────────
 
         elif q_lower.startswith("/sleep "):
-            bedtime = query.split()[1] if len(query.split()) > 1 else "23:00"
-            cycles = optimal_wake_times(bedtime)
-            console.print(Panel(
-                cycles.display(),
-                title=f"[cyan]Sleep Cycle Calculator[/cyan]  [dim]Bedtime: {bedtime}[/dim]",
-                border_style="cyan",
-                box=box.ROUNDED,
-                padding=(0, 2),
-            ))
+            handle_sleep(self, query, q_lower)
 
         elif q_lower.startswith("/chronotype"):
-            parts = query.split()
-            if len(parts) > 1:
-                try:
-                    meq = int(parts[1])
-                    result = classify_chronotype(meq_score=meq)
-                except ValueError:
-                    # Treat as bedtime
-                    result = classify_chronotype(bedtime_wfree=parts[1])
-            else:
-                # Default intermediate bear if no input
-                result = classify_chronotype(meq_score=55)
-
-            if "error" in result:
-                console.print(f"[dim]  {result['error']}[/dim]")
-            else:
-                sport = self.profile.data.get("sport", "general")
-                target = athlete_sleep_target(sport)
-                console.print(Panel(
-                    f"[bold]{result['label']}[/bold]\n\n"
-                    f"  {result['description']}\n\n"
-                    f"  Sleep window: {result['sleep_window'][0]} – {result['sleep_window'][1]}\n"
-                    f"  Peak alertness: {result['peak_alertness'][0]} – {result['peak_alertness'][1]}\n"
-                    f"  Peak physical performance: {result['peak_physical'][0]} – {result['peak_physical'][1]}\n\n"
-                    f"  Athlete note: {result['athlete_notes']}\n\n"
-                    f"  Sleep target ({sport}): {target['optimal_hours']}h optimal / {target['min_hours']}h minimum\n"
-                    f"  Evidence: {result['evidence']}",
-                    title=f"[cyan]Chronotype Analysis[/cyan]",
-                    border_style="cyan",
-                    box=box.ROUNDED,
-                    padding=(0, 2),
-                ))
+            handle_chronotype(self, query, q_lower)
 
         elif q_lower.startswith("/caffeine "):
-            parts = query.split()
-            if len(parts) >= 3:
-                try:
-                    dose = float(parts[1])
-                    hours = float(parts[2])
-                    if dose <= 0 or hours < 0:
-                        console.print("[dim red]  Dose must be positive, hours must be non-negative.[/dim red]")
-                        return False
-                    fast = len(parts) < 4 or parts[3].lower() != "slow"
-                    status = caffeine_clearance(dose, hours, fast_metabolizer=fast)
-                    console.print(Panel(
-                        status.display(),
-                        title="[cyan]Caffeine Clearance[/cyan]  [dim](CYP1A2 pharmacokinetics)[/dim]",
-                        border_style="cyan",
-                        box=box.SIMPLE,
-                    ))
-                except ValueError:
-                    console.print("[dim]  Usage: /caffeine 200 6 [slow][/dim]")
-            else:
-                console.print("[dim]  Usage: /caffeine <mg> <hours_since_dose> [slow][/dim]")
+            handle_caffeine(self, query, q_lower)
 
         elif q_lower.startswith("/sleepdebt "):
-            raw = query.split()[1:]
-            if raw:
-                try:
-                    nights = [float(h) for h in raw]
-                    sex = self.profile.data.get("sex", "male")
-                    sport = self.profile.data.get("sport", "general")
-                    target = athlete_sleep_target(sport)
-                    debt = sleep_debt_report(nights, target_hours=target["optimal_hours"])
-                    console.print(Panel(
-                        debt.display(),
-                        title=f"[cyan]Sleep Debt Tracker[/cyan]  [dim]Target: {target['optimal_hours']}h ({sport})[/dim]",
-                        border_style="cyan",
-                        box=box.ROUNDED,
-                        padding=(0, 2),
-                    ))
-                except ValueError:
-                    console.print("[dim]  Usage: /sleepdebt 7 6.5 8 7 6[/dim]")
-            else:
-                console.print("[dim]  Usage: /sleepdebt 7 6.5 8 7 6[/dim]")
+            handle_sleepdebt(self, query, q_lower)
 
         elif q_lower == "/hormones":
-            console.print(Panel(
-                format_hormonal_windows(),
-                title="[cyan]Hormonal Sleep Windows[/cyan]",
-                border_style="cyan",
-                box=box.ROUNDED,
-                padding=(0, 2),
-            ))
+            handle_hormones(self, query, q_lower)
 
         elif q_lower.startswith("/bedtime"):
-            parts = query.split()
-            sport = parts[1] if len(parts) > 1 else self.profile.data.get("sport", "general")
-            # Get chronotype from profile if set, else default bear
-            ct_data = self.profile.data.get("chronotype", "bear")
-            sleep_t = CHRONOTYPE_PROFILES.get(ct_data, CHRONOTYPE_PROFILES["bear"])["sleep_window"][0]
-            protocol = pre_sleep_protocol(chronotype=ct_data, sport=sport, sleep_time=sleep_t)
-            console.print(Panel(
-                protocol,
-                title=f"[cyan]Pre-Sleep Protocol[/cyan]  [dim]{ct_data.title()} chronotype · {sport}[/dim]",
-                border_style="cyan",
-                box=box.ROUNDED,
-                padding=(0, 2),
-            ))
+            handle_bedtime(self, query, q_lower)
 
         # ── Recovery Commands ────────────────────────────────────────
 
