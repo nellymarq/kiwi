@@ -201,6 +201,7 @@ from handlers.literature import (
 from handlers.planning import handle_meal_plan, handle_training_plan
 from handlers.competition_prep import handle_competition_prep
 from handlers.wearable import handle_import_labs, handle_import_wearable, handle_oura
+from handlers.orchestration import handle_digest, handle_unwatch, handle_watch, handle_watched
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1068,81 +1069,16 @@ class Kiwi:
                     console.print(result)
 
         elif q_lower.startswith("/watch "):
-            topic = query[7:].strip()
-            if topic:
-                if self.watch_list.add(topic):
-                    console.print(f"[dim]  Watching: [cyan]{topic}[/cyan]. Run /digest to get updates.[/dim]")
-                else:
-                    console.print(f"[dim]  Already watching '{topic}'.[/dim]")
+            handle_watch(self, query, q_lower)
 
         elif q_lower.startswith("/unwatch "):
-            topic = query[9:].strip()
-            if self.watch_list.remove(topic):
-                console.print(f"[dim]  Removed watch on: {topic}[/dim]")
-            else:
-                console.print(f"[dim]  Not in watch list: {topic}[/dim]")
+            handle_unwatch(self, query, q_lower)
 
         elif q_lower == "/watched" or q_lower == "/watchlist":
-            topics = self.watch_list.list_topics()
-            if not topics:
-                console.print("[dim]  No watched topics. Add with /watch <topic>[/dim]")
-            else:
-                lines = []
-                for t in topics:
-                    last = t.get("last_digest_ts", "never")[:10] if t.get("last_digest_ts") else "never digested"
-                    lines.append(f"  • [cyan]{t['topic']}[/cyan] — added {t.get('added_ts', '')[:10]}, last digest: {last}")
-                console.print(Panel(
-                    "\n".join(lines),
-                    title="[cyan]Watched Topics[/cyan]",
-                    border_style="cyan", box=box.SIMPLE,
-                ))
+            handle_watched(self, query, q_lower)
 
         elif q_lower == "/digest":
-            topics = self.watch_list.list_topics()
-            if not topics:
-                console.print("[dim]  No watched topics. Add with /watch <topic>[/dim]")
-            elif not (self.pubmed or self.openalex):
-                console.print("[dim]  Literature sources disabled. Run without --no-pubmed.[/dim]")
-            else:
-                console.print(f"[dim]  Running digest for {len(topics)} watched topic(s)...[/dim]\n")
-                for t in topics:
-                    topic_text = t["topic"]
-                    previous_seen = self.watch_list.get_last_seen(topic_text)
-                    keywords = " ".join(topic_text.split()[:6])
-
-                    all_items = []
-                    all_dois = []
-
-                    if self.pubmed:
-                        arts = self.pubmed.search_and_fetch(keywords, max_results=5, years_back=2)
-                        for a in arts:
-                            doi_l = (a.doi or "").lower()
-                            is_new = doi_l and doi_l not in previous_seen
-                            all_items.append((is_new, a.title, a.authors, a.year, a.doi, "PubMed"))
-                            if doi_l:
-                                all_dois.append(doi_l)
-
-                    if self.openalex:
-                        works = self.openalex.search_sports_nutrition(keywords, max_results=5, years_back=2)
-                        for w in works:
-                            doi_l = (w.doi or "").lower()
-                            is_new = doi_l and doi_l not in previous_seen
-                            all_items.append((is_new, w.title, w.authors, str(w.year), w.doi, "OpenAlex"))
-                            if doi_l:
-                                all_dois.append(doi_l)
-
-                    new_items = [x for x in all_items if x[0]]
-                    console.print(f"[bold]Topic: {topic_text}[/bold] — {len(new_items)} new, {len(all_items) - len(new_items)} already seen")
-                    for is_new, title, authors, year, doi, source in new_items[:8]:
-                        badge = "[green]NEW[/green]"
-                        author_str = ", ".join(authors[:2]) if authors else "?"
-                        console.print(f"  {badge} {title[:100]}")
-                        console.print(f"    [dim]{author_str} ({year}) · {source} · DOI: {doi}[/dim]")
-
-                    self.watch_list.mark_digest_run(topic_text, all_dois)
-                    console.print()
-
-                self.watch_list.update_global_digest_ts()
+            handle_digest(self, query, q_lower)
 
         elif q_lower == "/cost":
             console.print(Panel(
