@@ -55,10 +55,7 @@ from tools.calculations import SportsCalc
 from tools.exporter import ResearchExporter
 from tools.interactions import lookup_interactions
 from tools.food_database import FDCClient
-from tools.periodization import (
-    TrainingSession, TrainingLoadCalculator,
-    prilepins_recommendation, get_block_plan, format_block_plan,
-)
+from tools.periodization import TrainingLoadCalculator
 from tools.biomarkers import BiomarkerInterpreter
 from agents.sports_agent import run_sports_assessment
 from tools.injury_prevention import (
@@ -179,6 +176,12 @@ from handlers.supplements import (
     handle_interact,
     handle_supp,
     handle_supplist,
+)
+from handlers.training_load import (
+    handle_blocks,
+    handle_load,
+    handle_prilepin,
+    handle_session,
 )
 
 # ── Console ───────────────────────────────────────────────────────────────────
@@ -2538,87 +2541,16 @@ class Kiwi:
         # ── Training Load Commands ──────────────────────────────────
 
         elif q_lower.startswith("/session "):
-            parts = query.split()
-            if len(parts) >= 4:
-                try:
-                    day = int(parts[1])
-                    duration = float(parts[2])
-                    rpe = float(parts[3])
-                    if duration <= 0 or not (1 <= rpe <= 10):
-                        console.print("[dim red]  Duration must be positive, RPE must be 1–10.[/dim red]")
-                        return False
-                    sport = " ".join(parts[4:]) if len(parts) > 4 else ""
-                    s = TrainingSession(date_offset=day, duration_min=duration, rpe=rpe, sport=sport)
-                    self._pending_sessions.append(s)
-                    console.print(
-                        f"[dim]  Session logged: Day {day} | {duration:.0f}min | "
-                        f"RPE {rpe} | Load {s.session_load:.0f} AU[/dim]\n"
-                        f"[dim]  Total sessions: {len(self._pending_sessions)}. "
-                        f"Use /load to compute ATL/CTL/TSB.[/dim]"
-                    )
-                except ValueError:
-                    console.print("[dim]  Usage: /session <day_offset> <minutes> <rpe_1-10> [sport][/dim]")
-            else:
-                console.print("[dim]  Usage: /session 0 60 7 cycling[/dim]")
+            handle_session(self, query, q_lower)
 
         elif q_lower == "/load":
-            if not self._pending_sessions:
-                console.print(
-                    "[dim]  No sessions logged. Use /session <day> <min> <rpe> to add sessions.[/dim]\n"
-                    "[dim]  Example: /session 0 60 7 running[/dim]"
-                )
-            else:
-                metrics = self.load_calc.compute(self._pending_sessions)
-                ramp = self.load_calc.ramp_rate(self._pending_sessions)
-                content = metrics.display() + "\n"
-                if "ramp_rates" in ramp:
-                    content += "\n  Ramp Rate Analysis:\n"
-                    for r in ramp["ramp_rates"]:
-                        safe_icon = "✅" if r["safe"] else "⚠️"
-                        content += (
-                            f"  Week {r['week']}: {r['load_au']:.0f} AU  "
-                            f"({r['ramp_pct']:+.1f}%)  {safe_icon}\n"
-                        )
-                console.print(Panel(
-                    content,
-                    title=f"[cyan]Training Load Analysis[/cyan]  [dim]({len(self._pending_sessions)} sessions)[/dim]",
-                    border_style="cyan",
-                    box=box.ROUNDED,
-                    padding=(0, 2),
-                ))
+            handle_load(self, query, q_lower)
 
         elif q_lower.startswith("/blocks"):
-            parts = query.split()
-            sport = parts[1].lower() if len(parts) > 1 else "strength"
-            athlete_name = self.profile.data.get("name", "")
-            blocks = get_block_plan(sport)
-            report = format_block_plan(blocks, athlete_name=athlete_name)
-            console.print(Panel(
-                report,
-                title=f"[cyan]Periodization Plan[/cyan]  [dim]{sport.title()}[/dim]",
-                border_style="cyan",
-                box=box.ROUNDED,
-                padding=(0, 2),
-            ))
+            handle_blocks(self, query, q_lower)
 
         elif q_lower.startswith("/prilepin "):
-            try:
-                pct = float(query.split()[1])
-                if not (50 <= pct <= 110):
-                    console.print("[dim red]  Intensity must be 50–110% of 1RM.[/dim red]")
-                    return False
-                result = prilepins_recommendation(pct)
-                console.print(Panel(
-                    result["note"] + "\n\n"
-                    f"  Optimal total reps: {result.get('optimal_total_reps', 'N/A')}\n"
-                    f"  Rep range: {result.get('rep_range', 'N/A')}\n"
-                    f"  Evidence: {result['evidence']}",
-                    title=f"[cyan]Prilepin's Table[/cyan]  [dim]{pct:.0f}% intensity[/dim]",
-                    border_style="cyan",
-                    box=box.SIMPLE,
-                ))
-            except (ValueError, IndexError):
-                console.print("[dim]  Usage: /prilepin 80[/dim]")
+            handle_prilepin(self, query, q_lower)
 
         # ── Blood Panel Commands ─────────────────────────────────────
 
