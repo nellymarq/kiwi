@@ -183,6 +183,12 @@ from handlers.training_load import (
     handle_prilepin,
     handle_session,
 )
+from handlers.progress import (
+    handle_dashboard,
+    handle_team,
+    handle_track,
+    handle_trends_with_metric,
+)
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -1181,12 +1187,7 @@ class Kiwi:
             ))
 
         elif q_lower == "/team" or q_lower.startswith("/team "):
-            summary = format_team_summary()
-            console.print(Panel(
-                summary,
-                title="[cyan]Team Analytics[/cyan]",
-                border_style="cyan", box=box.SIMPLE,
-            ))
+            handle_team(self, query, q_lower)
 
         elif q_lower.startswith("/n_of_1 ") or q_lower.startswith("/nof1 "):
             offset = 8 if q_lower.startswith("/n_of_1 ") else 6
@@ -1498,41 +1499,13 @@ class Kiwi:
                 console.print("[dim]  /intervention list[/dim]")
 
         elif q_lower.startswith("/track "):
-            parts = query[7:].strip().split(maxsplit=2)
-            if len(parts) >= 2:
-                metric = parts[0].lower().replace(" ", "_")
-                try:
-                    value = float(parts[1])
-                    note = parts[2] if len(parts) > 2 else ""
-                    self.progress.record(metric, value, note=note)
-                    unit = KNOWN_METRICS.get(metric, "")
-                    console.print(f"[dim]  Tracked: {metric} = {value} {unit}"
-                                  + (f" ({note})" if note else "") + "[/dim]")
-                    # Proactive: check if this biomarker triggers recommendations
-                    sex = self.profile.get("sex") or "male"
-                    current_supps = self.profile.get("current_supplements") or []
-                    actions = check_biomarker(metric, value, sex=sex, current_supplements=current_supps)
-                    if actions:
-                        console.print()
-                        console.print(format_proactive_actions(actions))
-                except ValueError:
-                    console.print(f"[dim red]  Value must be numeric: /track {metric} <number>[/dim red]")
-            else:
-                metrics_list = ", ".join(sorted(KNOWN_METRICS.keys())[:15]) + "..."
-                console.print(f"[dim]  Usage: /track <metric> <value> [note][/dim]")
-                console.print(f"[dim]  Known metrics: {metrics_list}[/dim]")
+            handle_track(self, query, q_lower)
 
         elif q_lower.startswith("/trends "):
-            metric = query[8:].strip().lower().replace(" ", "_")
-            if metric:
-                output = self.progress.format_trend(metric)
-                console.print(Panel(output, title=f"[cyan]Trend: {metric}[/cyan]", border_style="cyan", box=box.SIMPLE))
-            else:
-                console.print("[dim]  Usage: /trends <metric>[/dim]")
+            handle_trends_with_metric(self, query, q_lower)
 
         elif q_lower == "/trends" or q_lower == "/dashboard":
-            output = self.progress.format_dashboard()
-            console.print(Panel(output, title="[cyan]Progress Dashboard[/cyan]", border_style="cyan", box=box.SIMPLE))
+            handle_dashboard(self, query, q_lower)
 
         elif q_lower == "/optimize_stack" or q_lower.startswith("/optimize_stack "):
             notes = query[15:].strip() if len(query) > 15 else ""
