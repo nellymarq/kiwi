@@ -59,7 +59,7 @@ from tools.periodization import (
     TrainingSession, TrainingLoadCalculator,
     prilepins_recommendation, get_block_plan, format_block_plan,
 )
-from tools.biomarkers import interpret_panel, BiomarkerInterpreter
+from tools.biomarkers import BiomarkerInterpreter
 from agents.sports_agent import run_sports_assessment
 from tools.supplements import resolve_supplement, format_dosing_protocol, list_supplements_by_category
 from tools.injury_prevention import (
@@ -174,6 +174,7 @@ from handlers.hydration import (
     handle_sweatest,
     handle_urine,
 )
+from handlers.labs import handle_biomarker, handle_labs
 
 # ── Console ───────────────────────────────────────────────────────────────────
 console = Console()
@@ -2717,55 +2718,10 @@ class Kiwi:
         # ── Blood Panel Commands ─────────────────────────────────────
 
         elif q_lower.startswith("/labs "):
-            raw = query[6:].strip().split()
-            if len(raw) >= 2 and len(raw) % 2 == 0:
-                panel: dict[str, float] = {}
-                valid = True
-                for i in range(0, len(raw), 2):
-                    name_part = raw[i]
-                    try:
-                        val = float(raw[i + 1])
-                        panel[name_part] = val
-                    except ValueError:
-                        console.print(f"[dim red]  Invalid value for {name_part}: {raw[i+1]}[/dim red]")
-                        valid = False
-                        break
-                if valid and panel:
-                    sex = self.profile.data.get("sex", "male")
-                    athlete_name = self.profile.data.get("name", "")
-                    report = interpret_panel(panel, sex=sex, athlete_name=athlete_name)
-                    console.print(Panel(
-                        report,
-                        title="[cyan]Blood Panel Analysis[/cyan]  [dim]USDA / Clinical Reference[/dim]",
-                        border_style="cyan",
-                        box=box.ROUNDED,
-                        padding=(0, 2),
-                    ))
-            else:
-                console.print("[dim]  Usage: /labs ferritin 25 vitamin_d 35 cortisol 12[/dim]")
+            handle_labs(self, query, q_lower)
 
         elif q_lower.startswith("/biomarker "):
-            parts = query.split(maxsplit=2)
-            if len(parts) == 3:
-                try:
-                    name_part = parts[1]
-                    val = float(parts[2])
-                    sex = self.profile.data.get("sex", "male")
-                    result = self.bio_interp.interpret(name_part, val, sex=sex)
-                    if result:
-                        console.print(Panel(
-                            result.display() +
-                            (f"\n\n  Evidence: {result.ref.evidence}" if result.ref.evidence else ""),
-                            title=f"[cyan]Biomarker[/cyan]  {result.name}",
-                            border_style="cyan",
-                            box=box.SIMPLE,
-                        ))
-                    else:
-                        console.print(f"[dim]  '{name_part}' not in biomarker database. Try: ferritin, testosterone, vitamin_d, cortisol, crp...[/dim]")
-                except ValueError:
-                    console.print("[dim]  Usage: /biomarker ferritin 45[/dim]")
-            else:
-                console.print("[dim]  Usage: /biomarker ferritin 45[/dim]")
+            handle_biomarker(self, query, q_lower)
 
         # ── Sleep Optimization Commands ──────────────────────────────
 
