@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.sleep_optimizer import (
+from kiwi_core.tools.sleep_optimizer import (
     CHRONOTYPE_PROFILES,
     athlete_sleep_target,
     caffeine_clearance,

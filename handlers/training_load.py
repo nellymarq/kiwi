@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.periodization import (
+from kiwi_core.tools.periodization import (
     TrainingSession,
     format_block_plan,
     get_block_plan,

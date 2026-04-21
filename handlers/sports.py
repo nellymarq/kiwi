@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from agents.sports_agent import run_sports_assessment
+from kiwi_core.agents.sports_agent import run_sports_assessment
 
 if TYPE_CHECKING:
     from kiwi import Kiwi

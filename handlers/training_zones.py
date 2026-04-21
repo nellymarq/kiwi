@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.training_zones import (
+from kiwi_core.tools.training_zones import (
     calculate_hr_zones_karvonen,
     calculate_pace_zones,
     calculate_power_zones,

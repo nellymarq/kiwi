@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from memory.progress import KNOWN_METRICS
+from kiwi_core.memory.progress import KNOWN_METRICS
 from tools.proactive import check_biomarker, format_proactive_actions
 from tools.team_analytics import format_team_summary
 

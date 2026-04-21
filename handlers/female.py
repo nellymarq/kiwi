@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.female_athlete import (
+from kiwi_core.tools.female_athlete import (
     CYCLE_PHASES,
     calculate_iron_needs,
     format_reds_report,

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.hydration import (
+from kiwi_core.tools.hydration import (
     SPORT_SWEAT_RATES,
     calculate_sweat_loss,
     design_rehydration_protocol,

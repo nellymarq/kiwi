@@ -11,11 +11,11 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
-from memory import client_manager
-from memory.progress import ProgressTracker
-from memory.interventions import InterventionTracker
-from memory.preferences import PreferencesStore
-from memory.session_log import read_log
+from kiwi_core.memory import client_manager
+from kiwi_core.memory.progress import ProgressTracker
+from kiwi_core.memory.interventions import InterventionTracker
+from kiwi_core.memory.preferences import PreferencesStore
+from kiwi_core.memory.session_log import read_log
 
 
 EXPORT_BASE = Path.home() / ".kiwi" / "client_exports"

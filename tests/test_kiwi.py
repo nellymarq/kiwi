@@ -22,46 +22,46 @@ from pathlib import Path
 
 def test_all_module_imports():
     """All Kiwi modules must import without errors."""
-    from agents.base import BaseAgent, AGENT_MODEL, REFINEMENT_THRESHOLD
-    from agents.planning import PlanningAgent
-    from agents.critique import CritiqueAgent
-    from agents.protocol import ProtocolAgent
-    from agents.orchestrator import KiwiOrchestrator, KIWI_SYSTEM
-    from tools.pubmed import PubMedClient, Article
-    from tools.calculations import SportsCalc, AthleteMetrics, ACTIVITY_FACTORS
-    from tools.exporter import ResearchExporter
-    from tools.interactions import INTERACTION_DB, lookup_interactions, format_interaction_report, has_novel_compounds, analyze_novel_interactions
-    from tools.food_database import FDCClient, FoodNutrients, NUTRIENT_IDS
-    from tools.periodization import TrainingLoadCalculator, get_block_plan, prilepins_recommendation
-    from tools.biomarkers import BiomarkerInterpreter, BIOMARKER_DB, interpret_panel
-    from tools.sleep_optimizer import (
+    from kiwi_core.agents.base import BaseAgent, AGENT_MODEL, REFINEMENT_THRESHOLD
+    from kiwi_core.agents.planning import PlanningAgent
+    from kiwi_core.agents.critique import CritiqueAgent
+    from kiwi_core.agents.protocol import ProtocolAgent
+    from kiwi_core.agents.orchestrator import KiwiOrchestrator, KIWI_SYSTEM
+    from kiwi_core.tools.pubmed import PubMedClient, Article
+    from kiwi_core.tools.calculations import SportsCalc, AthleteMetrics, ACTIVITY_FACTORS
+    from kiwi_core.tools.exporter import ResearchExporter
+    from kiwi_core.tools.interactions import INTERACTION_DB, lookup_interactions, format_interaction_report, has_novel_compounds, analyze_novel_interactions
+    from kiwi_core.tools.food_database import FDCClient, FoodNutrients, NUTRIENT_IDS
+    from kiwi_core.tools.periodization import TrainingLoadCalculator, get_block_plan, prilepins_recommendation
+    from kiwi_core.tools.biomarkers import BiomarkerInterpreter, BIOMARKER_DB, interpret_panel
+    from kiwi_core.tools.sleep_optimizer import (
         classify_chronotype, optimal_wake_times, caffeine_clearance,
         sleep_debt_report, CHRONOTYPE_PROFILES, ATHLETE_SLEEP_TARGETS,
     )
-    from tools.recovery import (
+    from kiwi_core.tools.recovery import (
         compute_readiness, estimate_doms, assess_deload_need,
         recovery_modality_guide, mps_timing_guide,
         EXERCISE_DAMAGE_COEFFICIENTS, RECOVERY_MODALITIES,
     )
-    from tools.hydration import (
+    from kiwi_core.tools.hydration import (
         calculate_sweat_loss, estimate_sweat_loss_by_sport,
         design_rehydration_protocol, urine_color_status,
         SPORT_SWEAT_RATES, SWEAT_ELECTROLYTE_CONCENTRATION,
     )
-    from agents.sports_agent import SportsAgent, run_sports_assessment
-    from tools.supplements import SUPPLEMENT_DB, resolve_supplement, format_dosing_protocol
-    from tools.body_composition import (
+    from kiwi_core.agents.sports_agent import SportsAgent, run_sports_assessment
+    from kiwi_core.tools.supplements import SUPPLEMENT_DB, resolve_supplement, format_dosing_protocol
+    from kiwi_core.tools.body_composition import (
         classify_body_fat, estimate_body_fat_jackson_pollock_3,
         analyze_body_composition, calculate_ffmi,
         calculate_energy_availability, safe_weight_change_rate,
     )
-    from tools.training_zones import (
+    from kiwi_core.tools.training_zones import (
         estimate_vo2max_cooper, predict_hr_max,
         calculate_hr_zones_karvonen, calculate_power_zones,
         calculate_pace_zones, recommend_intensity_distribution,
     )
-    from memory.store import KiwiMemory
-    from memory.profile import UserProfile
+    from kiwi_core.memory.store import KiwiMemory
+    from kiwi_core.memory.profile import UserProfile
 
     assert AGENT_MODEL == "claude-opus-4-6"
     assert REFINEMENT_THRESHOLD == 0.72
@@ -72,7 +72,7 @@ def test_all_module_imports():
 
 def test_bmr_mifflin_male():
     """Mifflin-St Jeor for 80kg, 180cm, 25yo male."""
-    from tools.calculations import SportsCalc
+    from kiwi_core.tools.calculations import SportsCalc
     bmr = SportsCalc.bmr_mifflin(80, 180, 25, "male")
     # Expected: (10*80) + (6.25*180) - (5*25) + 5 = 800 + 1125 - 125 + 5 = 1805
     assert abs(bmr - 1805) < 1
@@ -80,7 +80,7 @@ def test_bmr_mifflin_male():
 
 def test_bmr_mifflin_female():
     """Mifflin-St Jeor for 60kg, 165cm, 28yo female."""
-    from tools.calculations import SportsCalc
+    from kiwi_core.tools.calculations import SportsCalc
     bmr = SportsCalc.bmr_mifflin(60, 165, 28, "female")
     # Expected: (10*60) + (6.25*165) - (5*28) - 161 = 600 + 1031.25 - 140 - 161 = 1330.25
     assert abs(bmr - 1330.25) < 1
@@ -88,7 +88,7 @@ def test_bmr_mifflin_female():
 
 def test_bmr_katch_mcardle():
     """Katch-McArdle for 70kg LBM."""
-    from tools.calculations import SportsCalc
+    from kiwi_core.tools.calculations import SportsCalc
     bmr = SportsCalc.bmr_katch_mcardle(70)
     # Expected: 370 + (21.6 * 70) = 370 + 1512 = 1882
     assert abs(bmr - 1882) < 1
@@ -96,7 +96,7 @@ def test_bmr_katch_mcardle():
 
 def test_tdee_multipliers():
     """TDEE activity multipliers match literature values."""
-    from tools.calculations import SportsCalc, ACTIVITY_FACTORS
+    from kiwi_core.tools.calculations import SportsCalc, ACTIVITY_FACTORS
     assert ACTIVITY_FACTORS["sedentary"] == 1.2
     assert ACTIVITY_FACTORS["active"] == 1.725
     assert ACTIVITY_FACTORS["very_active"] == 1.9
@@ -108,7 +108,7 @@ def test_tdee_multipliers():
 
 def test_energy_availability_reds_threshold():
     """Energy availability < 30 kcal/kg FFM/day = RED-S risk (IOC 2023)."""
-    from tools.calculations import SportsCalc
+    from kiwi_core.tools.calculations import SportsCalc
     # Scenario: 2000 kcal intake, 1200 kcal exercise, 55kg FFM
     ea = SportsCalc.energy_availability(2000, 1200, 55)
     # EA = (2000 - 1200) / 55 = 14.5 kcal/kg FFM/day (below RED-S threshold)
@@ -118,7 +118,7 @@ def test_energy_availability_reds_threshold():
 
 def test_protein_targets_strength():
     """ISSN protein targets for 80kg strength athlete."""
-    from tools.calculations import SportsCalc
+    from kiwi_core.tools.calculations import SportsCalc
     targets = SportsCalc.protein_targets(80, "strength")
     # 1.6–2.2 g/kg → 128–176g
     assert targets["min_g"] == 128.0
@@ -129,7 +129,7 @@ def test_protein_targets_strength():
 
 def test_protein_targets_hypocaloric():
     """Hypocaloric protein targets are higher (Helms et al. 2014)."""
-    from tools.calculations import SportsCalc
+    from kiwi_core.tools.calculations import SportsCalc
     targets = SportsCalc.protein_targets(80, "hypocaloric")
     # 2.3–3.1 g/kg
     assert targets["min_g"] == pytest.approx(2.3 * 80, abs=0.1)
@@ -138,7 +138,7 @@ def test_protein_targets_hypocaloric():
 
 def test_creatine_dosing():
     """Creatine dosing per ISSN 2017 Position Stand."""
-    from tools.calculations import SportsCalc
+    from kiwi_core.tools.calculations import SportsCalc
     dosing = SportsCalc.creatine_dosing(80)
     # Maintenance: max(3.0, 0.03 * 80) = max(3.0, 2.4) = 3.0g
     assert "3.0" in dosing["maintenance_g_per_day"]
@@ -148,7 +148,7 @@ def test_creatine_dosing():
 
 def test_caffeine_dosing():
     """Caffeine dosing: 3–6 mg/kg for 80kg athlete = 240–480mg."""
-    from tools.calculations import SportsCalc
+    from kiwi_core.tools.calculations import SportsCalc
     dosing = SportsCalc.caffeine_dosing(80)
     assert "240" in dosing["dose_range_mg"]
     assert "480" in dosing["dose_range_mg"]
@@ -157,7 +157,7 @@ def test_caffeine_dosing():
 
 def test_compute_full_metrics():
     """Full metrics computation with body composition."""
-    from tools.calculations import SportsCalc
+    from kiwi_core.tools.calculations import SportsCalc
     m = SportsCalc.compute_full_metrics(
         weight_kg=80,
         height_cm=180,
@@ -177,14 +177,14 @@ def test_compute_full_metrics():
 # ── PubMed Client ──────────────────────────────────────────────────────────────
 
 def test_pubmed_search_string_basic():
-    from tools.pubmed import PubMedClient
+    from kiwi_core.tools.pubmed import PubMedClient
     pb = PubMedClient()
     s = pb.build_search_string("magnesium sleep quality")
     assert "magnesium sleep quality" in s.lower()
 
 
 def test_pubmed_search_string_with_study_types():
-    from tools.pubmed import PubMedClient
+    from kiwi_core.tools.pubmed import PubMedClient
     pb = PubMedClient()
     s = pb.build_search_string("creatine", ["randomized controlled trial", "meta-analysis"])
     assert "randomized controlled trial" in s
@@ -193,7 +193,7 @@ def test_pubmed_search_string_with_study_types():
 
 
 def test_article_context_block():
-    from tools.pubmed import Article
+    from kiwi_core.tools.pubmed import Article
     art = Article(
         pmid="12345678",
         title="Effects of creatine on strength",
@@ -213,7 +213,7 @@ def test_article_context_block():
 # ── Memory Store ───────────────────────────────────────────────────────────────
 
 def test_memory_default_structure():
-    from memory.store import KiwiMemory
+    from kiwi_core.memory.store import KiwiMemory
     mem = KiwiMemory()
     assert "episodic" in mem.data
     assert "semantic" in mem.data
@@ -222,7 +222,7 @@ def test_memory_default_structure():
 
 
 def test_memory_semantic_store_retrieve():
-    from memory.store import KiwiMemory
+    from kiwi_core.memory.store import KiwiMemory
     mem = KiwiMemory()
     mem.add_semantic("creatine monohydrate", "Evidence shows 3–5g/day maintenance dose...")
     result = mem.get_semantic("creatine monohydrate")
@@ -230,7 +230,7 @@ def test_memory_semantic_store_retrieve():
 
 
 def test_memory_semantic_case_insensitive():
-    from memory.store import KiwiMemory
+    from kiwi_core.memory.store import KiwiMemory
     mem = KiwiMemory()
     mem.add_semantic("Magnesium", "Critical role in 300+ enzyme reactions")
     assert mem.get_semantic("magnesium")  # lowercase lookup
@@ -239,7 +239,7 @@ def test_memory_semantic_case_insensitive():
 
 def test_memory_thread_lifecycle():
     import uuid
-    from memory.store import KiwiMemory
+    from kiwi_core.memory.store import KiwiMemory
     mem = KiwiMemory()
     # Use UUID to avoid conflicts with previously persisted test data
     thread_name = f"test_thread_{uuid.uuid4().hex[:8]}"
@@ -253,7 +253,7 @@ def test_memory_thread_lifecycle():
 
 
 def test_memory_history_summary_empty():
-    from memory.store import KiwiMemory
+    from kiwi_core.memory.store import KiwiMemory
     mem = KiwiMemory()
     # Fresh memory with no history
     mem.data["episodic"] = []
@@ -264,21 +264,21 @@ def test_memory_history_summary_empty():
 # ── User Profile ───────────────────────────────────────────────────────────────
 
 def test_profile_set_and_get():
-    from memory.profile import UserProfile
+    from kiwi_core.memory.profile import UserProfile
     p = UserProfile()
     p.set("weight_kg", "80.5")
     assert p.get("weight_kg") == pytest.approx(80.5)
 
 
 def test_profile_set_invalid_field():
-    from memory.profile import UserProfile
+    from kiwi_core.memory.profile import UserProfile
     p = UserProfile()
     ok = p.set("nonexistent_field", "value")
     assert ok is False
 
 
 def test_profile_list_field():
-    from memory.profile import UserProfile
+    from kiwi_core.memory.profile import UserProfile
     p = UserProfile()
     p.set("dietary_restrictions", "gluten-free, lactose intolerance, shellfish")
     restrictions = p.get("dietary_restrictions")
@@ -288,7 +288,7 @@ def test_profile_list_field():
 
 
 def test_profile_completeness_check():
-    from memory.profile import UserProfile
+    from kiwi_core.memory.profile import UserProfile
     p = UserProfile()
     p.data = {}  # Reset
     assert not p.is_complete()
@@ -301,7 +301,7 @@ def test_profile_completeness_check():
 
 
 def test_profile_to_summary():
-    from memory.profile import UserProfile
+    from kiwi_core.memory.profile import UserProfile
     p = UserProfile()
     p.data = {
         "name": "Test Athlete",
@@ -383,7 +383,7 @@ def test_rwl_json_parsing_with_preamble():
 
 def test_rwl_threshold():
     """Verify REFINEMENT_THRESHOLD is 0.72 and enforced correctly."""
-    from agents.base import REFINEMENT_THRESHOLD
+    from kiwi_core.agents.base import REFINEMENT_THRESHOLD
     assert REFINEMENT_THRESHOLD == 0.72
     # A score of 0.71 is below threshold
     assert 0.71 < REFINEMENT_THRESHOLD
@@ -396,7 +396,7 @@ def test_rwl_threshold():
 def test_planning_agent_builds_messages():
     """Planning agent must build valid message list from context."""
     import anthropic
-    from agents.planning import PlanningAgent
+    from kiwi_core.agents.planning import PlanningAgent
 
     client = anthropic.AsyncAnthropic.__new__(anthropic.AsyncAnthropic)
     agent = PlanningAgent(client)
@@ -419,7 +419,7 @@ def test_planning_agent_builds_messages():
 def test_critique_agent_builds_messages():
     """Critique agent builds messages from query + response."""
     import anthropic
-    from agents.critique import CritiqueAgent
+    from kiwi_core.agents.critique import CritiqueAgent
 
     client = anthropic.AsyncAnthropic.__new__(anthropic.AsyncAnthropic)
     agent = CritiqueAgent(client)
@@ -437,7 +437,7 @@ def test_critique_agent_builds_messages():
 def test_protocol_agent_builds_messages():
     """Protocol agent injects synthesis and profile into messages."""
     import anthropic
-    from agents.protocol import ProtocolAgent
+    from kiwi_core.agents.protocol import ProtocolAgent
 
     client = anthropic.AsyncAnthropic.__new__(anthropic.AsyncAnthropic)
     agent = ProtocolAgent(client)
@@ -457,14 +457,14 @@ def test_protocol_agent_builds_messages():
 
 def test_memory_archive_overflow(tmp_path, monkeypatch):
     """Episodic entries beyond limit should be archived, not discarded."""
-    import memory.store as store_mod
+    import kiwi_core.memory.store as store_mod
     monkeypatch.setattr(store_mod, "KIWI_DIR", tmp_path)
     monkeypatch.setattr(store_mod, "MEMORY_JSON", tmp_path / "memory.json")
     monkeypatch.setattr(store_mod, "MEMORY_MD", tmp_path / "memory.md")
     monkeypatch.setattr(store_mod, "ARCHIVE_JSON", tmp_path / "archive.json")
     monkeypatch.setattr(store_mod, "EPISODIC_LIMIT", 5)
 
-    from memory.store import KiwiMemory
+    from kiwi_core.memory.store import KiwiMemory
     mem = KiwiMemory()
     for i in range(8):
         mem.add_exchange(f"query {i}", f"response {i}", 0.85)
@@ -477,7 +477,7 @@ def test_memory_archive_overflow(tmp_path, monkeypatch):
 
 def test_memory_search_archive(tmp_path, monkeypatch):
     """Archive search should find entries by keyword."""
-    import memory.store as store_mod
+    import kiwi_core.memory.store as store_mod
     monkeypatch.setattr(store_mod, "KIWI_DIR", tmp_path)
     monkeypatch.setattr(store_mod, "MEMORY_JSON", tmp_path / "memory.json")
     monkeypatch.setattr(store_mod, "MEMORY_MD", tmp_path / "memory.md")
@@ -489,7 +489,7 @@ def test_memory_search_archive(tmp_path, monkeypatch):
     ]
     (tmp_path / "archive.json").write_text(json.dumps(archive_data))
 
-    from memory.store import KiwiMemory
+    from kiwi_core.memory.store import KiwiMemory
     mem = KiwiMemory()
     results = mem.search_archive(["creatine"])
     assert len(results) == 1
@@ -498,13 +498,13 @@ def test_memory_search_archive(tmp_path, monkeypatch):
 
 def test_semantic_staleness(tmp_path, monkeypatch):
     """Semantic entries older than threshold should be flagged as stale."""
-    import memory.store as store_mod
+    import kiwi_core.memory.store as store_mod
     monkeypatch.setattr(store_mod, "KIWI_DIR", tmp_path)
     monkeypatch.setattr(store_mod, "MEMORY_JSON", tmp_path / "memory.json")
     monkeypatch.setattr(store_mod, "MEMORY_MD", tmp_path / "memory.md")
     monkeypatch.setattr(store_mod, "ARCHIVE_JSON", tmp_path / "archive.json")
 
-    from memory.store import KiwiMemory
+    from kiwi_core.memory.store import KiwiMemory
     from datetime import datetime, timedelta, timezone
     mem = KiwiMemory()
     mem.add_semantic("fresh_topic", "recent data")
@@ -524,7 +524,7 @@ def test_semantic_staleness(tmp_path, monkeypatch):
 
 def test_profile_validation_ranges():
     """Profile should reject out-of-range values."""
-    from memory.profile import UserProfile
+    from kiwi_core.memory.profile import UserProfile
     p = UserProfile()
     p.data = {}
     result = p.set("age", "-5")
@@ -539,7 +539,7 @@ def test_profile_validation_ranges():
 
 def test_profile_validation_enums():
     """Profile should reject invalid enum values."""
-    from memory.profile import UserProfile
+    from kiwi_core.memory.profile import UserProfile
     p = UserProfile()
     p.data = {}
     result = p.set("sex", "helicopter")
@@ -555,7 +555,7 @@ def test_profile_validation_enums():
 
 def test_profile_validation_training_status():
     """Profile should accept valid training status values."""
-    from memory.profile import UserProfile
+    from kiwi_core.memory.profile import UserProfile
     p = UserProfile()
     p.data = {}
     result = p.set("training_status", "elite")

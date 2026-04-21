@@ -17,7 +17,7 @@ from rich.panel import Panel
 if TYPE_CHECKING:
     from kiwi import Kiwi
 
-from tools.injury_prevention import (
+from kiwi_core.tools.injury_prevention import (
     PROTOCOL_DB,
     calculate_acwr,
     calculate_fms_composite,

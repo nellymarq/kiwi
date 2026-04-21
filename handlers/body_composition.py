@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.body_composition import (
+from kiwi_core.tools.body_composition import (
     analyze_body_composition,
     calculate_energy_availability,
     calculate_ffmi,

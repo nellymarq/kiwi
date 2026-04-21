@@ -3,7 +3,7 @@
 import json
 import pytest
 from pathlib import Path
-from memory import client_manager
+from kiwi_core.memory import client_manager
 from tools import team_analytics
 
 

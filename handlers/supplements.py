@@ -14,14 +14,14 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.interactions import (
+from kiwi_core.tools.interactions import (
     analyze_novel_interactions,
     format_interaction_report,
     has_novel_compounds,
     lookup_interactions,
     lookup_single,
 )
-from tools.supplements import (
+from kiwi_core.tools.supplements import (
     format_dosing_protocol,
     list_supplements_by_category,
     resolve_supplement,

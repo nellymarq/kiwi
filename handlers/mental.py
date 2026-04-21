@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.mental_performance import (
+from kiwi_core.tools.mental_performance import (
     assess_burnout,
     assess_competition_anxiety,
     format_anxiety_report,

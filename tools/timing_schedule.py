@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from .supplements import SUPPLEMENT_DB, resolve_supplement
+from kiwi_core.tools.supplements import SUPPLEMENT_DB, resolve_supplement
 
 
 @dataclass

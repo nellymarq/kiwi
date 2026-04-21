@@ -9,9 +9,9 @@ from __future__ import annotations
 from datetime import datetime as _dt, timedelta as _td, timezone as _tz
 from typing import TYPE_CHECKING
 
-from tools.female_athlete import format_reds_report, screen_reds
-from tools.injury_prevention import calculate_acwr, format_acwr_report
-from tools.supplements import SUPPLEMENT_DB
+from kiwi_core.tools.female_athlete import format_reds_report, screen_reds
+from kiwi_core.tools.injury_prevention import calculate_acwr, format_acwr_report
+from kiwi_core.tools.supplements import SUPPLEMENT_DB
 
 if TYPE_CHECKING:
     from kiwi import Kiwi

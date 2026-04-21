@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from memory.session_log import log_stats
-from memory.sessions import list_sessions, load_session, save_session
+from kiwi_core.memory.session_log import log_stats
+from kiwi_core.memory.sessions import list_sessions, load_session, save_session
 
 if TYPE_CHECKING:
     from kiwi import Kiwi

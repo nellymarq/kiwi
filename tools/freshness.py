@@ -39,7 +39,7 @@ def _newest_year(references: list[str]) -> int | None:
 
 def check_supplement_freshness() -> list[FreshnessFlag]:
     """Check all supplement DB entries for evidence staleness."""
-    from .supplements import SUPPLEMENT_DB
+    from kiwi_core.tools.supplements import SUPPLEMENT_DB
 
     current_year = date.today().year
     flags = []
@@ -77,7 +77,7 @@ def check_supplement_freshness() -> list[FreshnessFlag]:
 
 def check_biomarker_freshness() -> list[FreshnessFlag]:
     """Check all biomarker DB entries for evidence staleness."""
-    from .biomarkers import BIOMARKER_DB
+    from kiwi_core.tools.biomarkers import BIOMARKER_DB
 
     current_year = date.today().year
     flags = []
@@ -138,7 +138,7 @@ def format_freshness_report() -> str:
             lines.append(f"  {f.item_name} ({f.source}) — {f.year} ({f.age_years}y old)")
         lines.append("")
 
-    current_supps = len([1 for _ in __import__("tools.supplements", fromlist=["SUPPLEMENT_DB"]).SUPPLEMENT_DB]) - len(supp_flags)
+    current_supps = len([1 for _ in __import__("kiwi_core.tools.supplements", fromlist=["SUPPLEMENT_DB"]).SUPPLEMENT_DB]) - len(supp_flags)
     lines.append(f"Summary: {current_supps} current, {len(aging)} aging, {len(stale)} stale")
     lines.append("Consider: /pubmed <topic> 2024-2026 to check for updates")
 

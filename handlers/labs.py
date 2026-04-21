@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.biomarkers import interpret_panel
+from kiwi_core.tools.biomarkers import interpret_panel
 
 if TYPE_CHECKING:
     from kiwi import Kiwi

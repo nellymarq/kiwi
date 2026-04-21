@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.environmental import (
+from kiwi_core.tools.environmental import (
     air_quality_adjustment,
     altitude_training_protocol,
     cold_exposure_protocol,

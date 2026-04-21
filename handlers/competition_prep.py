@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from tools.female_athlete import format_cycle_training, match_training_to_phase
-from tools.injury_prevention import (
+from kiwi_core.tools.female_athlete import format_cycle_training, match_training_to_phase
+from kiwi_core.tools.injury_prevention import (
     format_prevention_protocol,
     get_prevention_protocol,
     match_prevention_protocol,

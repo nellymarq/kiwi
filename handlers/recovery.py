@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.recovery import (
+from kiwi_core.tools.recovery import (
     EXERCISE_DAMAGE_COEFFICIENTS,
     HRVReading,
     assess_deload_need,

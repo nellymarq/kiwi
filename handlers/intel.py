@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING
 from rich import box
 from rich.panel import Panel
 
-from tools.female_athlete import format_cycle_training, format_reds_report, match_training_to_phase, screen_reds
+from kiwi_core.tools.female_athlete import format_cycle_training, format_reds_report, match_training_to_phase, screen_reds
 from tools.freshness import format_freshness_report
-from tools.injury_prevention import calculate_acwr, format_acwr_report
+from kiwi_core.tools.injury_prevention import calculate_acwr, format_acwr_report
 from tools.knowledge_frontier import analyze_frontiers, format_frontiers
 from tools.nutrient_gaps import analyze_gaps, format_gap_analysis
 from tools.pdf_export import BrandConfig, generate_client_report

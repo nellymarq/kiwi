@@ -17,7 +17,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
-from memory import client_manager
+from kiwi_core.memory import client_manager
 
 
 @dataclass
@@ -194,7 +194,7 @@ def compare_clients(name_a: str, name_b: str) -> str:
     lines.append(f"{'':<20} {', '.join(supps_b) or '—':<20}")
 
     # Latest biomarkers from progress data
-    from memory.progress import ProgressTracker
+    from kiwi_core.memory.progress import ProgressTracker
     pt_a = ProgressTracker(client=name_a)
     pt_b = ProgressTracker(client=name_b)
     all_metrics = sorted(set(pt_a.get_all_metrics() + pt_b.get_all_metrics()))
@@ -244,7 +244,7 @@ def format_client_snapshot(client_name: str) -> str:
         lines.append("Profile: not set (run /onboard)")
 
     # Latest biomarkers from progress
-    from memory.progress import ProgressTracker
+    from kiwi_core.memory.progress import ProgressTracker
     pt = ProgressTracker(client=client_name)
     metrics = pt.get_all_metrics()
     if metrics:
@@ -256,7 +256,7 @@ def format_client_snapshot(client_name: str) -> str:
                 lines.append(f"  {m}: {latest['value']:.1f} {latest.get('unit', '')} ({latest.get('ts', '')[:10]})")
 
     # Active interventions
-    from memory.interventions import InterventionTracker
+    from kiwi_core.memory.interventions import InterventionTracker
     it = InterventionTracker(client=client_name)
     active = it.list_active()
     if active:

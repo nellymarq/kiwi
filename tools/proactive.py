@@ -11,9 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .biomarkers import BIOMARKER_DB, BiomarkerInterpreter
-from .supplements import SUPPLEMENT_DB, DosingProtocol
-from .interactions import lookup_interactions
+from kiwi_core.tools.biomarkers import BIOMARKER_DB, BiomarkerInterpreter
+from kiwi_core.tools.supplements import SUPPLEMENT_DB, DosingProtocol
+from kiwi_core.tools.interactions import lookup_interactions
 
 
 # Mapping: biomarker status → relevant supplement keywords

@@ -11,7 +11,7 @@ from rich import box
 from rich.panel import Panel
 
 from tools.auto_quality import auto_assess as auto_quality_assess
-from tools.effect_size import (
+from kiwi_core.tools.effect_size import (
     cohens_d,
     hedges_g,
     mean_difference,
@@ -19,16 +19,16 @@ from tools.effect_size import (
     odds_ratio,
     relative_risk,
 )
-from tools.grade import assess_from_evidence_tier
-from tools.injury_prevention import (
+from kiwi_core.tools.grade import assess_from_evidence_tier
+from kiwi_core.tools.injury_prevention import (
     format_prevention_protocol,
     get_prevention_protocol,
     match_prevention_protocol,
 )
-from tools.interactions import lookup_interactions
+from kiwi_core.tools.interactions import lookup_interactions
 from tools.pdf_reader import read_pdf as read_oa_pdf
 from tools.quality_assessment import format_checklist as quality_checklist
-from tools.supplements import SUPPLEMENT_DB
+from kiwi_core.tools.supplements import SUPPLEMENT_DB
 
 if TYPE_CHECKING:
     from kiwi import Kiwi
