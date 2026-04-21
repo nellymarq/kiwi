@@ -14,7 +14,6 @@ from .europepmc import EuropePMCClient
 from .freshness import format_freshness_report
 from .knowledge_frontier import analyze_frontiers
 from .nutrient_gaps import analyze_gaps
-from .openalex import OpenAlexClient
 from .pdf_export import generate_client_report
 from .pdf_reader import read_pdf
 from .proactive import check_biomarker
@@ -27,7 +26,7 @@ from .unpaywall import UnpaywallClient
 
 __all__ = [
     "ClinicalTrialsClient", "EuropePMCClient",
-    "OpenAlexClient", "SemanticScholarClient", "UnpaywallClient",
+    "SemanticScholarClient", "UnpaywallClient",
     "SessionCostTracker", "analyze_frontiers", "analyze_gaps",
     "auto_assess", "check_biomarker", "detect_contradictions",
     "export_client", "format_freshness_report", "format_team_summary",

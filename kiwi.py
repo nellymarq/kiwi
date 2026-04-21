@@ -41,7 +41,7 @@ from rich import box
 from kiwi_core.agents.orchestrator import KiwiOrchestrator
 from kiwi_core.agents.base import REFINEMENT_THRESHOLD
 from kiwi_core.tools.pubmed import PubMedClient
-from tools.openalex import OpenAlexClient
+from kiwi_core.tools.openalex import OpenAlexClient
 from tools.clinical_trials import ClinicalTrialsClient
 from tools.europepmc import EuropePMCClient
 from tools.unpaywall import UnpaywallClient
